@@ -46,7 +46,7 @@ export default function AddressBox() {
           'border transition-all duration-150',
           copied
             ? 'border-nyx-success text-nyx-success'
-            : 'border-[rgba(255,255,255,0.08)] hover:shadow-pill-hover hover:border-nyx-accent',
+            : 'border-nyx-border hover:shadow-pill-hover hover:border-nyx-accent',
         ].join(' ')}
       >
         {copied ? (
@@ -64,19 +64,19 @@ export default function AddressBox() {
 
       {dropdownOpen && (
         <div
-          className="dropdown-animate absolute right-0 top-full mt-2 w-52 bg-nyx-secondary border border-[rgba(255,255,255,0.08)] rounded-xl shadow-2xl overflow-hidden z-50"
+          className="dropdown-animate absolute right-0 top-full mt-2 w-52 bg-nyx-secondary border border-nyx-border rounded-xl shadow-2xl overflow-hidden z-50"
           onMouseLeave={() => setDropdownOpen(false)}
         >
           <button
             onClick={() => { setDropdownOpen(false); navigate('/profile') }}
-            className="w-full text-left px-4 py-3 text-sm text-nyx-muted hover:text-nyx-text hover:bg-[rgba(255,255,255,0.04)] transition-all duration-150 flex items-center gap-3"
+            className="w-full text-left px-4 py-3 text-sm text-nyx-muted hover:text-nyx-text hover:bg-nyx-hover transition-all duration-150 flex items-center gap-3"
           >
             <User size={14} strokeWidth={1.5} />
             Profile
           </button>
           <button
             onClick={() => { setDropdownOpen(false); navigate('/wallet') }}
-            className="w-full text-left px-4 py-3 text-sm text-nyx-muted hover:text-nyx-text hover:bg-[rgba(255,255,255,0.04)] transition-all duration-150 flex items-center gap-3"
+            className="w-full text-left px-4 py-3 text-sm text-nyx-muted hover:text-nyx-text hover:bg-nyx-hover transition-all duration-150 flex items-center gap-3"
           >
             <LayoutDashboard size={14} strokeWidth={1.5} />
             Wallet

@@ -43,7 +43,7 @@ export default function WalletPopup() {
               <p className="text-nyx-muted text-sm">Public blockchain. Private business.</p>
             </div>
 
-            <div className="bg-nyx-bg border border-[rgba(255,255,255,0.06)] rounded-xl p-4 mb-6 flex gap-3">
+            <div className="bg-nyx-bg border border-nyx-border rounded-xl p-4 mb-6 flex gap-3">
               <ShieldAlert size={16} className="text-nyx-danger flex-shrink-0 mt-0.5" strokeWidth={1.5} />
               <p className="text-nyx-muted text-sm leading-relaxed">
                 <span className="text-nyx-danger font-medium">NYX is non-custodial.</span>{' '}
@@ -68,7 +68,7 @@ export default function WalletPopup() {
               <p className="text-nyx-muted text-sm">Write these words down in order. Store them somewhere safe and private.</p>
             </div>
 
-            <div className="bg-nyx-bg border border-[rgba(255,255,255,0.06)] rounded-xl p-4 mb-2">
+            <div className="bg-nyx-bg border border-nyx-border rounded-xl p-4 mb-2">
               <p className="text-nyx-text font-mono text-sm leading-relaxed break-words select-all">
                 {mnemonic}
               </p>
@@ -98,7 +98,7 @@ export default function WalletPopup() {
               <p className="text-nyx-muted text-sm">Before continuing, confirm you've saved your recovery phrase.</p>
             </div>
 
-            <div className="bg-nyx-bg border border-[rgba(255,255,255,0.06)] rounded-xl p-4 mb-6 flex gap-3">
+            <div className="bg-nyx-bg border border-nyx-border rounded-xl p-4 mb-6 flex gap-3">
               <ShieldAlert size={15} className="text-nyx-danger flex-shrink-0 mt-0.5" strokeWidth={1.5} />
               <p className="text-nyx-muted text-sm leading-relaxed">
                 <span className="text-nyx-danger font-medium">Warning:</span>{' '}

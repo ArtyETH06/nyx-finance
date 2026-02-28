@@ -91,10 +91,9 @@ export default function PayInvoice() {
   const [receiptBlob, setReceiptBlob] = useState<Blob | null>(null)
   const [tokenBalanceText, setTokenBalanceText] = useState<string | null>(null)
   const [fiatOpen, setFiatOpen] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState<'metamask' | 'alchemy'>('metamask')
   const [depositAddress, setDepositAddress] = useState<string | null>(null)
   const [depositWallet, setDepositWallet] = useState<MockWalletIdentity | null>(null)
-  const [alchemySourceAddress, setAlchemySourceAddress] = useState<string | null>(null)
-  const [alchemySourcePublicKey, setAlchemySourcePublicKey] = useState<string | null>(null)
 
   const ethereum = useMemo(() => {
     if (typeof window === 'undefined') return null
@@ -105,9 +104,7 @@ export default function PayInvoice() {
     const depositWallet = createEphemeralMonadWallet()
     setDepositWallet(depositWallet)
     setDepositAddress(depositWallet.address)
-    const alchemyWallet = getOrCreatePersistentAlchemyPayWallet()
-    setAlchemySourceAddress(alchemyWallet.address)
-    setAlchemySourcePublicKey(alchemyWallet.publicKey)
+    getOrCreatePersistentAlchemyPayWallet()
   }, [])
 
   async function waitForWalletBalance(params: {
@@ -471,7 +468,26 @@ export default function PayInvoice() {
 
   if (!invoice) return null
 
-  const canPay = invoice.status === 'sent' && !!payerAddress && !processing
+  const isPayable = invoice.status === 'sent'
+  const canExecuteMetamaskPay = isPayable && !!payerAddress && !processing
+  const primaryButtonLabel = processing
+    ? 'Processing...'
+    : paymentMethod === 'metamask'
+      ? (payerAddress ? `Pay ${fmtAmount(invoice.amount, invoice.tokenSymbol)}` : 'Connect MetaMask')
+      : `Pay ${fmtAmount(invoice.amount, invoice.tokenSymbol)}`
+
+  async function handlePrimaryPaymentAction() {
+    if (!isPayable || processing) return
+    if (paymentMethod === 'alchemy') {
+      setFiatOpen(true)
+      return
+    }
+    if (!payerAddress) {
+      await connectMetaMask()
+      return
+    }
+    await handlePay()
+  }
 
   return (
     <main className="px-6 py-10 max-w-3xl mx-auto space-y-4">
@@ -479,24 +495,6 @@ export default function PayInvoice() {
         <div>
           <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Invoice Payment</p>
           <h1 className="text-xl font-semibold text-nyx-text">{invoice.title}</h1>
-          {depositAddress && (
-            <div className="mt-3 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2">
-              <p className="text-[10px] uppercase tracking-wide text-blue-200 mb-0.5">Deposit Address</p>
-              <p className="text-xs text-blue-100 break-all">{depositAddress}</p>
-            </div>
-          )}
-          {alchemySourceAddress && (
-            <div className="mt-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2">
-              <p className="text-[10px] uppercase tracking-wide text-emerald-200 mb-0.5">AlchemyPay Testnet Wallet</p>
-              <p className="text-xs text-emerald-100 break-all">{alchemySourceAddress}</p>
-              {alchemySourcePublicKey && (
-                <>
-                  <p className="text-[10px] uppercase tracking-wide text-emerald-200 mt-2 mb-0.5">Public Key</p>
-                  <p className="text-[11px] text-emerald-100/95 break-all">{alchemySourcePublicKey}</p>
-                </>
-              )}
-            </div>
-          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -521,29 +519,92 @@ export default function PayInvoice() {
         {invoice.status === 'paid' && (
           <p className="text-nyx-success text-sm">This invoice has already been paid.</p>
         )}
+        {invoice.status === 'rejected' && (
+          <div className="rounded-lg border border-nyx-danger/35 bg-[rgba(239,68,68,0.08)] px-3 py-2">
+            <p className="text-nyx-danger text-sm font-medium">This invoice has been rejected.</p>
+            {invoice.rejectionReason && (
+              <p className="text-nyx-muted text-sm mt-1">{invoice.rejectionReason}</p>
+            )}
+          </div>
+        )}
 
-        <div className="flex flex-wrap gap-3">
-          <button
-            onClick={connectMetaMask}
-            disabled={processing}
-            className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {payerAddress ? 'MetaMask Connected' : 'Connect MetaMask'}
-          </button>
-          <button
-            onClick={handlePay}
-            disabled={!canPay}
-            className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {processing ? 'Processing...' : `Pay ${fmtAmount(invoice.amount, invoice.tokenSymbol)}`}
-          </button>
-          <button
-            onClick={() => setFiatOpen(true)}
-            disabled={processing || invoice.status !== 'sent'}
-            className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Pay with Card
-          </button>
+        <div className="space-y-3">
+          <p className="text-[10px] uppercase tracking-widest text-nyx-muted">Payment Method</p>
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => setPaymentMethod('metamask')}
+              className={[
+                'w-full text-left rounded-xl border px-4 py-3 transition-colors',
+                'flex items-center justify-between gap-3',
+                paymentMethod === 'metamask'
+                  ? 'border-nyx-accent bg-[rgba(108,92,231,0.10)]'
+                  : 'border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.04)]',
+              ].join(' ')}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="h-10 w-10 rounded-lg bg-[rgba(255,255,255,0.06)] flex items-center justify-center text-lg">
+                  🦊
+                </div>
+                <div className="min-w-0">
+                  <p className="text-nyx-text text-base font-semibold">MetaMask</p>
+                  <p className="text-nyx-muted text-sm">Crypto wallet payment</p>
+                </div>
+              </div>
+              <div
+                className={[
+                  'h-4 w-4 rounded-full border',
+                  paymentMethod === 'metamask'
+                    ? 'border-nyx-accent bg-nyx-accent'
+                    : 'border-[rgba(255,255,255,0.35)] bg-transparent',
+                ].join(' ')}
+              />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPaymentMethod('alchemy')}
+              className={[
+                'w-full text-left rounded-xl border px-4 py-3 transition-colors',
+                'flex items-center justify-between gap-3',
+                paymentMethod === 'alchemy'
+                  ? 'border-nyx-accent bg-[rgba(108,92,231,0.10)]'
+                  : 'border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.04)]',
+              ].join(' ')}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="h-10 w-10 rounded-lg bg-[rgba(255,255,255,0.06)] flex items-center justify-center text-lg">
+                  💳
+                </div>
+                <div className="min-w-0">
+                  <p className="text-nyx-text text-base font-semibold">AlchemyPay Testnet</p>
+                  <p className="text-nyx-muted text-sm">Card payment simulation</p>
+                </div>
+              </div>
+              <div
+                className={[
+                  'h-4 w-4 rounded-full border',
+                  paymentMethod === 'alchemy'
+                    ? 'border-nyx-accent bg-nyx-accent'
+                    : 'border-[rgba(255,255,255,0.35)] bg-transparent',
+                ].join(' ')}
+              />
+            </button>
+          </div>
+
+          <div className="min-h-[42px]">
+            <button
+              onClick={handlePrimaryPaymentAction}
+              disabled={
+                processing ||
+                !isPayable ||
+                (paymentMethod === 'metamask' && !!payerAddress && !canExecuteMetamaskPay)
+              }
+              className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {primaryButtonLabel}
+            </button>
+          </div>
         </div>
 
         {statusText && (

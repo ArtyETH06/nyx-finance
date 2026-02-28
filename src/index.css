@@ -2,48 +2,91 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Light theme (default) ── */
+:root, .theme-light {
+  --nyx-bg:                #F7F9FC;
+  --nyx-secondary:         #F3F4F6;
+  --nyx-card:              #FFFFFF;
+  --nyx-border:            #E5E7EB;
+  --nyx-text:              #0A0F1C;
+  --nyx-muted:             #6B7280;
+  --nyx-accent:            #2563EB;
+  --nyx-accent-h:          #1D4ED8;
+  --nyx-success:           #16A34A;
+  --nyx-danger:            #DC2626;
+  --nyx-warning:           #F59E0B;
+  --nyx-hover:             rgba(0,0,0,0.04);
+  --nyx-active:            rgba(37,99,235,0.08);
+  --nyx-shadow-accent:     0 1px 3px rgba(37,99,235,0.2);
+  --nyx-shadow-card-hover: 0 0 0 1px rgba(37,99,235,0.15);
+  --nyx-shadow-pill:       0 0 0 1px rgba(37,99,235,0.3);
+  --nyx-card-shadow:       0 1px 2px rgba(0,0,0,0.04);
+  --nyx-logo-filter:       brightness(0) saturate(100%);
+}
+
+/* ── DarkNode theme ── */
+.theme-darknode {
+  --nyx-bg:                #070B1A;
+  --nyx-secondary:         #0E1428;
+  --nyx-card:              #111A35;
+  --nyx-border:            rgba(255,255,255,0.06);
+  --nyx-text:              #E6E9F2;
+  --nyx-muted:             #8C94B3;
+  --nyx-accent:            #6C5CE7;
+  --nyx-accent-h:          #7D6BFF;
+  --nyx-success:           #22C55E;
+  --nyx-danger:            #EF4444;
+  --nyx-warning:           #F59E0B;
+  --nyx-hover:             rgba(255,255,255,0.04);
+  --nyx-active:            rgba(108,92,231,0.12);
+  --nyx-shadow-accent:     0 4px 12px rgba(108,92,231,0.25);
+  --nyx-shadow-card-hover: 0 0 0 1px rgba(108,92,231,0.15);
+  --nyx-shadow-pill:       0 0 0 1px rgba(108,92,231,0.35), 0 0 12px rgba(108,92,231,0.1);
+  --nyx-card-shadow:       none;
+  --nyx-logo-filter:       none;
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
-  background-color: #070B1A;
-  color: #E6E9F2;
+  background-color: var(--nyx-bg);
+  color: var(--nyx-text);
   font-family: 'Inter', system-ui, sans-serif;
   margin: 0;
   padding: 0;
 }
 
 @layer components {
-  /* Premium card — subtle inner gradient + rgba border */
+  /* Card */
   .nyx-card {
-    background: linear-gradient(180deg, rgba(255,255,255,0.025) 0%, rgba(0,0,0,0.12) 100%);
-    background-color: #111A35;
-    border: 1px solid rgba(255,255,255,0.06);
+    background-color: var(--nyx-card);
+    border: 1px solid var(--nyx-border);
     border-radius: 12px;
+    box-shadow: var(--nyx-card-shadow);
     transition: box-shadow 150ms ease;
   }
   .nyx-card:hover {
-    box-shadow: 0 0 0 1px rgba(108,92,231,0.15);
+    box-shadow: var(--nyx-shadow-card-hover);
   }
 
   /* Primary CTA button */
   .btn-primary {
     width: 100%;
     padding: 12px;
-    background-color: #6C5CE7;
+    background-color: var(--nyx-accent);
     color: #fff;
     font-weight: 500;
     font-size: 0.875rem;
     border-radius: 10px;
     border: none;
     cursor: pointer;
-    box-shadow: 0 4px 12px rgba(108,92,231,0.25);
+    box-shadow: var(--nyx-shadow-accent);
     transition: background-color 150ms ease, box-shadow 150ms ease;
   }
   .btn-primary:hover:not(:disabled) {
-    background-color: #7D6BFF;
-    box-shadow: 0 4px 18px rgba(108,92,231,0.35);
+    background-color: var(--nyx-accent-h);
   }
   .btn-primary:disabled {
     opacity: 0.45;
@@ -56,17 +99,17 @@ body {
     align-items: center;
     gap: 6px;
     padding: 8px 16px;
-    background-color: #0E1428;
-    border: 1px solid rgba(255,255,255,0.08);
+    background-color: var(--nyx-card);
+    border: 1px solid var(--nyx-border);
     border-radius: 8px;
-    color: #E6E9F2;
+    color: var(--nyx-text);
     font-size: 0.875rem;
     cursor: pointer;
     transition: border-color 150ms ease, color 150ms ease;
   }
   .btn-secondary:hover {
-    border-color: #6C5CE7;
-    color: #fff;
+    border-color: var(--nyx-accent);
+    color: var(--nyx-accent);
   }
 
   /* Danger variant */
@@ -75,17 +118,17 @@ body {
     align-items: center;
     gap: 6px;
     padding: 8px 16px;
-    background-color: #0E1428;
-    border: 1px solid rgba(239,68,68,0.35);
+    background-color: var(--nyx-card);
+    border: 1px solid rgba(220,38,38,0.35);
     border-radius: 8px;
-    color: #EF4444;
+    color: var(--nyx-danger);
     font-size: 0.875rem;
     cursor: pointer;
     transition: background-color 150ms ease, border-color 150ms ease;
   }
   .btn-danger:hover {
-    background-color: rgba(239,68,68,0.08);
-    border-color: rgba(239,68,68,0.6);
+    background-color: rgba(220,38,38,0.08);
+    border-color: rgba(220,38,38,0.6);
   }
 
   /* Inline text link */

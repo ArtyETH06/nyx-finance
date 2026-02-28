@@ -12,7 +12,7 @@ function ServiceCard({
 }) {
   return (
     <div className="nyx-card p-5">
-      <div className="w-9 h-9 rounded-lg bg-[rgba(108,92,231,0.12)] text-nyx-accent flex items-center justify-center mb-3">
+      <div className="w-9 h-9 rounded-lg bg-nyx-active text-nyx-accent flex items-center justify-center mb-3">
         <Icon size={16} strokeWidth={1.6} />
       </div>
       <h3 className="text-nyx-text font-medium mb-1">{title}</h3>

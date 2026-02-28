@@ -368,7 +368,7 @@ export default function InvoiceDetail() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
-          <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-lg p-4">
+          <div className="bg-nyx-hover border border-nyx-border rounded-lg p-4">
             <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-2">Issuer</p>
             <p className="text-nyx-text text-sm">{issuerName}</p>
             {invoice.issuerInfo?.company && (
@@ -379,13 +379,13 @@ export default function InvoiceDetail() {
                 {copiedIssuer ? 'Copied!' : invoice.issuerAddress}
               </p>
               {!copiedIssuer && (
-                <span className="absolute -top-6 left-0 text-[10px] text-nyx-muted bg-nyx-secondary border border-[rgba(255,255,255,0.08)] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap pointer-events-none z-10">
+                <span className="absolute -top-6 left-0 text-[10px] text-nyx-muted bg-nyx-secondary border border-nyx-border px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap pointer-events-none z-10">
                   Click to copy
                 </span>
               )}
             </div>
           </div>
-          <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-lg p-4">
+          <div className="bg-nyx-hover border border-nyx-border rounded-lg p-4">
             <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-2">Payer</p>
             <p className="text-nyx-text text-sm">{payerName}</p>
             {invoice.payerInfo?.company && (
@@ -396,7 +396,7 @@ export default function InvoiceDetail() {
                 {copiedPayer ? 'Copied!' : invoice.payerAddress}
               </p>
               {!copiedPayer && (
-                <span className="absolute -top-6 left-0 text-[10px] text-nyx-muted bg-nyx-secondary border border-[rgba(255,255,255,0.08)] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap pointer-events-none z-10">
+                <span className="absolute -top-6 left-0 text-[10px] text-nyx-muted bg-nyx-secondary border border-nyx-border px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap pointer-events-none z-10">
                   Click to copy
                 </span>
               )}
@@ -409,7 +409,7 @@ export default function InvoiceDetail() {
             <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-3">Services</p>
             <div className="space-y-2">
               {invoice.lineItems.map((item, i) => (
-                <div key={i} className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-lg p-3">
+                <div key={i} className="bg-nyx-hover border border-nyx-border rounded-lg p-3">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <p className="text-nyx-text text-sm font-medium">{item.title}</p>
@@ -422,7 +422,7 @@ export default function InvoiceDetail() {
                 </div>
               ))}
               {invoice.lineItems.length > 1 && (
-                <div className="flex justify-between items-center pt-2 border-t border-[rgba(255,255,255,0.06)]">
+                <div className="flex justify-between items-center pt-2 border-t border-nyx-border">
                   <p className="text-[10px] uppercase tracking-widest text-nyx-muted">Total</p>
                   <p className="text-nyx-text text-sm font-semibold">{fmtMoney(invoice.amount, invoice.tokenSymbol)}</p>
                 </div>
@@ -496,7 +496,7 @@ export default function InvoiceDetail() {
               {proofEntry && (
                 <div>
                   <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">ZK Transfer Record</p>
-                  <div className="bg-[rgba(255,255,255,0.03)] rounded-md p-3 space-y-1.5">
+                  <div className="bg-nyx-hover rounded-md p-3 space-y-1.5">
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-nyx-text font-medium">{proofEntry.kind}</span>
                       <span className={`ml-auto text-[10px] font-semibold uppercase px-2 py-0.5 rounded ${proofEntry.status === 'confirmed' ? 'bg-[rgba(34,197,94,0.12)] text-nyx-success' : 'bg-[rgba(255,255,255,0.06)] text-nyx-muted'}`}>
@@ -517,7 +517,7 @@ export default function InvoiceDetail() {
               )}
 
               {(spentNotes.length > 0 || createdNotes.length > 0) && (
-                <div className="pt-2 border-t border-[rgba(255,255,255,0.06)]">
+                <div className="pt-2 border-t border-nyx-border">
                   <p className="text-[10px] text-nyx-muted leading-relaxed mb-3">
                     Nullifiers and commitments are ZK cryptographic values embedded in the pool contract calldata.
                     They cannot be searched directly — verify them by inspecting the transaction above.
@@ -528,7 +528,7 @@ export default function InvoiceDetail() {
                       <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Nullified Notes ({spentNotes.length})</p>
                       <div className="space-y-1.5">
                         {spentNotes.map((n) => (
-                          <div key={n.nullifier} className="bg-[rgba(255,255,255,0.03)] rounded-md p-2.5 space-y-1 font-mono text-[10px]">
+                          <div key={n.nullifier} className="bg-nyx-hover rounded-md p-2.5 space-y-1 font-mono text-[10px]">
                             <div className="flex gap-2">
                               <span className="text-nyx-muted w-20 flex-shrink-0">nullifier</span>
                               <span className="text-nyx-text break-all">{n.nullifier}</span>
@@ -552,7 +552,7 @@ export default function InvoiceDetail() {
                       <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Output Notes ({createdNotes.length})</p>
                       <div className="space-y-1.5">
                         {createdNotes.map((n) => (
-                          <div key={n.commitment} className="bg-[rgba(255,255,255,0.03)] rounded-md p-2.5 space-y-1 font-mono text-[10px]">
+                          <div key={n.commitment} className="bg-nyx-hover rounded-md p-2.5 space-y-1 font-mono text-[10px]">
                             <div className="flex gap-2">
                               <span className="text-nyx-muted w-20 flex-shrink-0">commitment</span>
                               <span className="text-nyx-text break-all">{n.commitment}</span>
@@ -631,10 +631,10 @@ export default function InvoiceDetail() {
             </button>
           )}
           {showReject && (
-            <div className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.06)] space-y-3">
+            <div className="mt-4 pt-4 border-t border-nyx-border space-y-3">
               <label className="text-xs text-nyx-muted block">Rejection reason</label>
               <textarea
-                className="w-full bg-nyx-bg border border-[rgba(255,255,255,0.06)] rounded-lg px-3 py-2.5 text-nyx-text text-sm placeholder:text-nyx-muted/40 focus:outline-none focus:border-nyx-accent transition-colors duration-150 resize-none"
+                className="w-full w-full bg-nyx-bg border border-nyx-border rounded-lg px-3 py-2.5 text-nyx-text text-sm placeholder:text-nyx-muted/40 focus:outline-none focus:border-nyx-accent transition-colors duration-150 resize-none"
                 rows={3}
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}

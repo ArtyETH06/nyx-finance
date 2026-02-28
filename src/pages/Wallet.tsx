@@ -14,7 +14,7 @@ const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 // ── helpers ─────────────────────────────────────────────────────────────────
 
 const inputCls =
-  'w-full bg-nyx-bg border border-[rgba(255,255,255,0.06)] rounded-lg px-3 py-2.5 text-nyx-text text-sm placeholder:text-nyx-muted/40 focus:outline-none focus:border-nyx-accent transition-colors duration-150'
+  'w-full bg-nyx-bg border border-nyx-border rounded-lg px-3 py-2.5 text-nyx-text text-sm placeholder:text-nyx-muted/40 focus:outline-none focus:border-nyx-accent transition-colors duration-150'
 
 const selectCls = `${inputCls} cursor-pointer pr-8 appearance-none`
 
@@ -279,7 +279,7 @@ export default function Wallet() {
             {copied ? 'Copied!' : address}
           </p>
           {!copied && (
-            <span className="absolute -top-7 left-0 text-[10px] text-nyx-muted bg-nyx-secondary border border-[rgba(255,255,255,0.08)] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap pointer-events-none z-10">
+            <span className="absolute -top-7 left-0 text-[10px] text-nyx-muted bg-nyx-secondary border border-nyx-border px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap pointer-events-none z-10">
               Click to copy
             </span>
           )}
@@ -306,7 +306,7 @@ export default function Wallet() {
               return (
                 <div
                   key={tokenAddress}
-                  className="flex items-center justify-between px-4 py-3 bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-lg"
+                  className="flex items-center justify-between px-4 py-3 bg-nyx-hover border border-nyx-border rounded-lg"
                 >
                   <div>
                     <p className="text-nyx-text text-sm font-medium">{symbol}</p>

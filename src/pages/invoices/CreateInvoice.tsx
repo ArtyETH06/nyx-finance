@@ -64,7 +64,7 @@ function Field({
 }
 
 const inputCls =
-  'w-full bg-nyx-bg border border-[rgba(255,255,255,0.06)] rounded-lg px-3 py-2.5 text-nyx-text text-sm placeholder:text-nyx-muted/40 focus:outline-none focus:border-nyx-accent transition-colors duration-150'
+  'w-full bg-nyx-bg border border-nyx-border rounded-lg px-3 py-2.5 text-nyx-text text-sm placeholder:text-nyx-muted/40 focus:outline-none focus:border-nyx-accent transition-colors duration-150'
 
 export default function CreateInvoice() {
   const { activeAccount } = useUnlink()
@@ -243,7 +243,7 @@ export default function CreateInvoice() {
           <Field label="Company">
             <input className={inputCls} value={form.issuerCompany} onChange={set('issuerCompany')} placeholder="Acme Corp" />
           </Field>
-          <div className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.04)]">
+          <div className="mt-4 pt-4 border-t border-nyx-border">
             <p className="text-[10px] font-semibold tracking-widest text-nyx-muted uppercase mb-1">Your ZK Address</p>
             <p className="font-mono text-nyx-muted text-xs break-all">{activeAccount?.address}</p>
           </div>
@@ -270,7 +270,7 @@ export default function CreateInvoice() {
           <SectionLabel>Invoice Details</SectionLabel>
           <div className="space-y-4">
             {form.lineItems.map((item, index) => (
-              <div key={index} className="rounded-lg border border-[rgba(255,255,255,0.06)] p-3 space-y-3">
+              <div key={index} className="rounded-lg border border-nyx-border p-3 space-y-3">
                 <div className="flex items-center justify-between">
                   <p className="text-xs uppercase tracking-widest text-nyx-muted">Service {index + 1}</p>
                   {form.lineItems.length > 1 && (
@@ -323,7 +323,7 @@ export default function CreateInvoice() {
 
             <Field label="Token" required>
               <select
-                className="w-full bg-nyx-bg border border-[rgba(255,255,255,0.06)] rounded-lg text-nyx-muted text-sm font-mono px-3 py-2.5 focus:outline-none focus:border-nyx-accent transition-colors duration-150"
+                className="w-full bg-nyx-bg border border-nyx-border rounded-lg text-nyx-muted text-sm font-mono px-3 py-2.5 focus:outline-none focus:border-nyx-accent transition-colors duration-150"
                 value={form.tokenSymbol}
                 onChange={(e) => setForm((f) => ({ ...f, tokenSymbol: e.target.value as FormState['tokenSymbol'] }))}
               >

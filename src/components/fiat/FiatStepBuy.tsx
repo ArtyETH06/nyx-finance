@@ -21,6 +21,18 @@ const USD_TO_TOKEN_RATE: Record<FiatToken, number> = {
   UNLKm: 2,
 }
 
+const CURRENCY_BADGE: Record<FiatCurrency, string> = {
+  USD: '🇺🇸',
+  EUR: '🇪🇺',
+}
+
+const TOKEN_BADGE: Record<FiatToken, string> = {
+  MON: '🟢',
+  USDCm: '🔵',
+  USDT: '🟩',
+  UNLKm: '🟣',
+}
+
 function parsePositive(value: string): number {
   const parsed = Number(value)
   if (!Number.isFinite(parsed) || parsed <= 0) return 0
@@ -69,8 +81,8 @@ export default function FiatStepBuy({ state, invoiceAmount, onChange, onProceed 
               onChange={(e) => onChange({ currency: e.target.value as FiatCurrency })}
               className="rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="USD">USD</option>
-              <option value="EUR">EUR</option>
+              <option value="USD">{CURRENCY_BADGE.USD} USD</option>
+              <option value="EUR">{CURRENCY_BADGE.EUR} EUR</option>
             </select>
           </div>
         </div>
@@ -86,16 +98,16 @@ export default function FiatStepBuy({ state, invoiceAmount, onChange, onProceed 
               onChange={(e) => onChange({ token: e.target.value as FiatToken })}
               className="rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="MON">MON</option>
-              <option value="USDCm">USDCm</option>
-              <option value="USDT">USDT</option>
-              <option value="UNLKm">UNLKm</option>
+              <option value="MON">{TOKEN_BADGE.MON} MON</option>
+              <option value="USDCm">{TOKEN_BADGE.USDCm} USDCm</option>
+              <option value="USDT">{TOKEN_BADGE.USDT} USDT</option>
+              <option value="UNLKm">{TOKEN_BADGE.UNLKm} UNLKm</option>
             </select>
           </div>
         </div>
 
         <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-sm text-slate-600">
-          Your order: {fmt(receiveAmount)} {state.token} for {fmt(payAmount, 2)} {state.currency}
+          Your order: {TOKEN_BADGE[state.token]} {fmt(receiveAmount)} {state.token} for {CURRENCY_BADGE[state.currency]} {fmt(payAmount, 2)} {state.currency}
         </div>
 
         <button

@@ -31,15 +31,15 @@ function AppInner() {
   const location = useLocation()
   const isPublicPayRoute = /^\/pay\/[^/]+$/.test(location.pathname)
   const isPublicInvoiceRoute = /^\/invoices\/[^/]+$/.test(location.pathname)
-  const isPublicRoute = isPublicPayRoute || isPublicInvoiceRoute
+  const isWalletOptionalRoute = isPublicPayRoute || isPublicInvoiceRoute
 
   useEffect(() => {
-    if (!isPublicRoute && ready && walletExists && !activeAccount) {
+    if (!isWalletOptionalRoute && ready && walletExists && !activeAccount) {
       createAccount()
     }
-  }, [isPublicRoute, ready, walletExists, activeAccount, createAccount])
+  }, [isWalletOptionalRoute, ready, walletExists, activeAccount, createAccount])
 
-  if (isPublicRoute) {
+  if (isPublicPayRoute) {
     return (
       <div className="min-h-screen bg-nyx-bg flex flex-col">
         <Header showNavigation={false} showWallet={false} />
@@ -59,11 +59,11 @@ function AppInner() {
     return <FullscreenLoader label="Initializing..." />
   }
 
-  if (!walletExists) {
+  if (!isWalletOptionalRoute && !walletExists) {
     return <WalletPopup />
   }
 
-  if (!activeAccount) {
+  if (!isWalletOptionalRoute && !activeAccount) {
     return <FullscreenLoader label="Setting up account..." />
   }
 

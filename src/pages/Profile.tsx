@@ -5,7 +5,7 @@ import { ArrowLeft, Copy, Trash2, Eye, EyeOff, KeyRound, Upload, ShieldAlert, Wa
 import { useProfile } from '../lib/profile'
 
 const inputCls =
-  'w-full bg-nyx-bg border border-[rgba(255,255,255,0.06)] rounded-lg px-3 py-2.5 text-nyx-text text-sm placeholder:text-nyx-muted/40 focus:outline-none focus:border-nyx-accent transition-colors duration-150'
+  'w-full bg-nyx-bg border border-nyx-border rounded-lg px-3 py-2.5 text-nyx-text text-sm placeholder:text-nyx-muted/40 focus:outline-none focus:border-nyx-accent transition-colors duration-150'
 
 export default function Profile() {
   const { activeAccount, exportMnemonic, clearWallet, importWallet, busy } = useUnlink()
@@ -158,7 +158,7 @@ export default function Profile() {
               {copied ? 'Copied!' : address}
             </p>
             {!copied && (
-              <span className="absolute -top-7 left-0 text-[10px] text-nyx-muted bg-nyx-secondary border border-[rgba(255,255,255,0.08)] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap pointer-events-none z-10">
+              <span className="absolute -top-7 left-0 text-[10px] text-nyx-muted bg-nyx-secondary border border-nyx-border px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap pointer-events-none z-10">
                 Click to copy
               </span>
             )}
@@ -192,12 +192,12 @@ export default function Profile() {
               </div>
 
               {/* Word grid */}
-              <div className="bg-nyx-bg border border-[rgba(255,255,255,0.06)] rounded-xl p-3">
+              <div className="bg-nyx-bg border border-nyx-border rounded-xl p-3">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   {mnemonicWords.map((word, i) => (
                     <div
                       key={i}
-                      className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-lg px-3 py-2.5 flex items-center gap-2"
+                      className="bg-nyx-hover border border-nyx-border rounded-lg px-3 py-2.5 flex items-center gap-2"
                     >
                       <span className="text-nyx-muted font-mono text-[10px] w-4 flex-shrink-0 tabular-nums">
                         {i + 1}
@@ -236,7 +236,7 @@ export default function Profile() {
                 onChange={(e) => setImportPhrase(e.target.value)}
                 placeholder="Enter your recovery phrase..."
                 rows={3}
-                className="w-full bg-nyx-bg border border-[rgba(255,255,255,0.06)] rounded-xl px-4 py-3 text-nyx-text text-sm font-mono placeholder:text-nyx-muted/40 resize-none focus:outline-none focus:border-nyx-accent transition-colors duration-150 mb-4"
+                className="w-full bg-nyx-bg border border-nyx-border rounded-xl px-4 py-3 text-nyx-text text-sm font-mono placeholder:text-nyx-muted/40 resize-none focus:outline-none focus:border-nyx-accent transition-colors duration-150 mb-4"
               />
               <button
                 onClick={() => setImportStep('confirm')}

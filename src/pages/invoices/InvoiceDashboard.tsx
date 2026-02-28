@@ -140,7 +140,7 @@ export default function InvoiceDashboard() {
 
       {!loading && !error && invoices.length === 0 && (
         <div className="nyx-card p-16 text-center">
-          <div className="w-12 h-12 rounded-xl bg-[rgba(108,92,231,0.08)] border border-[rgba(108,92,231,0.15)] flex items-center justify-center mx-auto mb-4">
+          <div className="w-12 h-12 rounded-xl bg-nyx-active border border-[rgba(108,92,231,0.15)] flex items-center justify-center mx-auto mb-4">
             <FilePlus size={22} className="text-nyx-accent" strokeWidth={1.5} />
           </div>
           <p className="text-nyx-text font-medium mb-1">No invoices yet.</p>
@@ -170,7 +170,7 @@ export default function InvoiceDashboard() {
                 <div className={[
                   'w-9 h-9 rounded-lg flex-shrink-0 flex items-center justify-center',
                   isSent
-                    ? 'bg-[rgba(108,92,231,0.1)]'
+                    ? 'bg-nyx-active'
                     : 'bg-[rgba(34,197,94,0.08)]',
                 ].join(' ')}>
                   {isSent
