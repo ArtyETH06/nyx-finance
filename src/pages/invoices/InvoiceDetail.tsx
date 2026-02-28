@@ -20,11 +20,6 @@ function fmtMoney(amount: number, symbol: string) {
   return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${symbol}`
 }
 
-function shortAddress(address: string) {
-  if (address.length < 16) return address
-  return `${address.slice(0, 8)}…${address.slice(-6)}`
-}
-
 export default function InvoiceDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -36,14 +31,12 @@ export default function InvoiceDetail() {
   const [busy, setBusy] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
   const [showReject, setShowReject] = useState(false)
-  const [insufficientFunds, setInsufficientFunds] = useState(false)
   const [txStatusText, setTxStatusText] = useState<string | null>(null)
 
   const balancesRef = useRef(balances)
   useEffect(() => { balancesRef.current = balances }, [balances])
 
   const address = activeAccount?.address ?? ''
-  const isIssuer = !!invoice && invoice.issuerAddress === address
   const isPayer = !!invoice && invoice.payerAddress === address
 
   const token = useMemo(
@@ -102,7 +95,7 @@ export default function InvoiceDetail() {
     if (!id) return
     const timer = window.setInterval(() => {
       if (!busy) void loadInvoice()
-    }, 5000)
+    }, 30000)
     return () => window.clearInterval(timer)
   }, [id, busy, loadInvoice])
 
@@ -236,11 +229,10 @@ export default function InvoiceDetail() {
 
     setBusy(true)
     try {
-      setInsufficientFunds(false)
       const localBalance = balancesRef.current[tokenAddress] ?? 0n
       if (localBalance < requiredAmount) {
-        setInsufficientFunds(true)
         toast.show('Insufficient private balance.', 'error')
+        navigate('/wallet')
         return
       }
       await executePaymentFlow()
@@ -283,7 +275,14 @@ export default function InvoiceDetail() {
   }
 
   if (loading) {
-    return <main className="px-8 py-10 max-w-4xl text-nyx-muted text-sm">Loading invoice...</main>
+    return (
+      <main className="px-8 py-10 max-w-4xl min-h-[55vh] flex items-center justify-center">
+        <div className="flex items-center gap-2 text-nyx-muted text-sm">
+          <Loader2 size={16} className="animate-spin text-nyx-accent" />
+          Loading invoice...
+        </div>
+      </main>
+    )
   }
 
   if (error || !invoice) {
@@ -353,12 +352,28 @@ export default function InvoiceDetail() {
 
         <div className="space-y-3">
           <div>
-            <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Title</p>
-            <p className="text-nyx-text text-sm">{invoice.title}</p>
-          </div>
-          <div>
-            <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Description</p>
-            <p className="text-nyx-text text-sm leading-relaxed">{invoice.description}</p>
+            <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-3">Services</p>
+            <div className="space-y-2">
+              {invoice.lineItems.map((item, i) => (
+                <div key={i} className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-lg p-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-nyx-text text-sm font-medium">{item.title}</p>
+                      {item.description && (
+                        <p className="text-nyx-muted text-xs mt-0.5 leading-relaxed">{item.description}</p>
+                      )}
+                    </div>
+                    <p className="text-nyx-text text-sm font-mono whitespace-nowrap flex-shrink-0">{fmtMoney(item.amount, invoice.tokenSymbol)}</p>
+                  </div>
+                </div>
+              ))}
+              {invoice.lineItems.length > 1 && (
+                <div className="flex justify-between items-center pt-2 border-t border-[rgba(255,255,255,0.06)]">
+                  <p className="text-[10px] uppercase tracking-widest text-nyx-muted">Total</p>
+                  <p className="text-nyx-text text-sm font-semibold">{fmtMoney(invoice.amount, invoice.tokenSymbol)}</p>
+                </div>
+              )}
+            </div>
           </div>
           <div>
             <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Token</p>
@@ -417,11 +432,19 @@ export default function InvoiceDetail() {
 
           {invoice.status === 'sent' && (
             <div className="flex flex-wrap gap-2">
-              <button onClick={handleAccept} disabled={busy} className="btn-secondary">
+              <button
+                onClick={handleAccept}
+                disabled={busy}
+                className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <Check size={13} strokeWidth={1.5} />
                 {busy ? 'Processing...' : 'Accept & Pay'}
               </button>
-              <button onClick={() => setShowReject((v) => !v)} disabled={busy} className="btn-danger">
+              <button
+                onClick={() => setShowReject((v) => !v)}
+                disabled={busy}
+                className="btn-danger disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <X size={13} strokeWidth={1.5} />
                 Reject
               </button>
@@ -429,7 +452,12 @@ export default function InvoiceDetail() {
           )}
 
           {invoice.status === 'accepted' && (
-            <button onClick={handlePay} disabled={busy} className="btn-primary" style={{ width: 'auto', padding: '8px 16px' }}>
+            <button
+              onClick={handlePay}
+              disabled={busy}
+              className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ width: 'auto', padding: '8px 16px' }}
+            >
               {busy ? 'Processing...' : 'Accept & Pay'}
             </button>
           )}
@@ -442,41 +470,13 @@ export default function InvoiceDetail() {
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 placeholder="Reason for rejection..."
+                disabled={busy}
               />
               <button onClick={handleReject} disabled={busy || !rejectReason.trim()} className="btn-danger disabled:opacity-40 disabled:cursor-not-allowed">
                 {busy ? 'Saving...' : 'Confirm Reject'}
               </button>
             </div>
           )}
-        </div>
-      )}
-
-      {insufficientFunds && (
-        <div className="nyx-card p-6 border border-[rgba(234,179,8,0.3)] bg-[rgba(234,179,8,0.06)]">
-          <p className="text-yellow-300 text-sm font-medium mb-2">Insufficient private balance</p>
-          <p className="text-nyx-muted text-sm mb-4">
-            This invoice needs {fmtMoney(invoice.amount, invoice.tokenSymbol)} but your private balance is lower.
-          </p>
-          <div className="flex gap-2">
-            <button onClick={() => navigate('/wallet')} className="btn-secondary">
-              Go To Wallet
-            </button>
-            <button onClick={() => navigate('/profile')} className="btn-secondary">
-              Go To Profile
-            </button>
-          </div>
-        </div>
-      )}
-
-      {isIssuer && (
-        <div className="nyx-card p-6">
-          <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-2">Issuer View</p>
-          <p className="text-nyx-muted text-sm">
-            Counterparty: <span className="text-nyx-text">{shortAddress(invoice.payerAddress)}</span>
-          </p>
-          <p className="text-nyx-muted text-sm mt-1">
-            Status: <span className="text-nyx-text uppercase">{currentStatusLabel}</span>
-          </p>
         </div>
       )}
 

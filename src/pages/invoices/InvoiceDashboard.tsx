@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useUnlink } from '@unlink-xyz/react'
 import { useNavigate } from 'react-router-dom'
-import { FilePlus, ArrowUpRight, ArrowDownLeft, RefreshCw } from 'lucide-react'
+import { FilePlus, ArrowUpRight, ArrowDownLeft, RefreshCw, Loader2 } from 'lucide-react'
 import type { Invoice } from '../../lib/invoices'
 import {
   applyInvoiceLocalOverride,
@@ -82,7 +82,7 @@ export default function InvoiceDashboard() {
     if (!address) return
     const timer = window.setInterval(() => {
       void load()
-    }, 5000)
+    }, 30000)
     return () => window.clearInterval(timer)
   }, [address])
 
@@ -112,7 +112,12 @@ export default function InvoiceDashboard() {
       </div>
 
       {loading && (
-        <div className="text-nyx-muted text-sm py-16 text-center">Loading invoices...</div>
+        <div className="min-h-[45vh] flex items-center justify-center">
+          <div className="flex items-center gap-2 text-nyx-muted text-sm">
+            <Loader2 size={16} className="animate-spin text-nyx-accent" />
+            Loading invoices...
+          </div>
+        </div>
       )}
 
       {error && (
