@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useUnlink } from '@unlink-xyz/react'
 import { useNavigate } from 'react-router-dom'
 import { Users, Plus, Loader2, ChevronRight } from 'lucide-react'
+import { loadProfile } from '../../lib/profile'
 
 interface Organization {
   _id: string
@@ -58,7 +59,7 @@ export default function Teams() {
         body: JSON.stringify({
           name: orgName.trim(),
           ownerAddress: address,
-          members: [{ address, role: 'admin', joinedAt: new Date().toISOString() }],
+          members: [{ address, role: 'admin', ...loadProfile(address), joinedAt: new Date().toISOString() }],
         }),
       })
       if (!res.ok) {

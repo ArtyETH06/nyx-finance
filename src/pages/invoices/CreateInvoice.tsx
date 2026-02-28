@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUnlink } from '@unlink-xyz/react'
+import { loadProfile } from '../../lib/profile'
 import { toast } from '../../lib/toast'
 import { buildInvoicePdf, sha256Blob } from '../../lib/invoicePdf'
 import { computeDueDateIso, formatDueDate, formatIssueDate, makeInvoiceId } from '../../lib/invoices'
@@ -25,20 +26,14 @@ interface FormState {
 }
 
 const empty: FormState = {
-  issuerFirstName: 'Captain',
-  issuerLastName:  'Ledgerbeard',
-  issuerCompany:   'Banana Analytics LLC',
-  payerFirstName:  'Sir',
-  payerLastName:   'Paymentsalot',
-  payerCompany:    'Moon Coffee DAO',
-  payerAddress:    'unlink1qyv8z6lurqx2437m0udmdu5c643yczyfj3gxlsf28r4l4d5l0e6amz53jwtfr9y2jxag4yzmq5tgfnuvst9syrfma453s2hkmgzseggvzl55d9ytfkwzjh0wx8m',
-  lineItems:       [
-    {
-      title: 'Emergency Coffee Refill Retainer',
-      description: 'Professional services: 7 espresso-fueled architecture reviews, 3 bug exorcisms, and 1 production incident pep talk.',
-      amount: '42',
-    },
-  ],
+  issuerFirstName: '',
+  issuerLastName:  '',
+  issuerCompany:   '',
+  payerFirstName:  '',
+  payerLastName:   '',
+  payerCompany:    '',
+  payerAddress:    '',
+  lineItems:       [{ title: '', description: '', amount: '' }],
   tokenSymbol:     'USDCm',
 }
 
@@ -79,6 +74,19 @@ export default function CreateInvoice() {
   const [form, setForm] = useState<FormState>(empty)
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+
+  // Pre-fill issuer from saved profile
+  useEffect(() => {
+    const address = activeAccount?.address
+    if (!address) return
+    const p = loadProfile(address)
+    setForm((f) => ({
+      ...f,
+      issuerFirstName: p.firstName || f.issuerFirstName,
+      issuerLastName:  p.lastName  || f.issuerLastName,
+      issuerCompany:   p.company   || f.issuerCompany,
+    }))
+  }, [activeAccount?.address])
 
   function set(field: Exclude<keyof FormState, 'lineItems'>) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>

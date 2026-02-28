@@ -1,11 +1,28 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUnlink } from '@unlink-xyz/react'
-import { ArrowLeft, Copy, Trash2, Eye, EyeOff, KeyRound, Upload, ShieldAlert, Wallet } from 'lucide-react'
+import { ArrowLeft, Copy, Trash2, Eye, EyeOff, KeyRound, Upload, ShieldAlert, Wallet, Check } from 'lucide-react'
+import { useProfile } from '../lib/profile'
+
+const inputCls =
+  'w-full bg-nyx-bg border border-[rgba(255,255,255,0.06)] rounded-lg px-3 py-2.5 text-nyx-text text-sm placeholder:text-nyx-muted/40 focus:outline-none focus:border-nyx-accent transition-colors duration-150'
 
 export default function Profile() {
   const { activeAccount, exportMnemonic, clearWallet, importWallet, busy } = useUnlink()
   const navigate = useNavigate()
+  const address = activeAccount?.address ?? ''
+
+  // Profile info
+  const { profile, save: saveProfile } = useProfile(address)
+  const [profileForm, setProfileForm] = useState(profile)
+  const [profileSaved, setProfileSaved] = useState(false)
+
+  function handleProfileSave(e: React.FormEvent) {
+    e.preventDefault()
+    saveProfile(profileForm)
+    setProfileSaved(true)
+    setTimeout(() => setProfileSaved(false), 2000)
+  }
 
   // Address copy
   const [copied, setCopied] = useState(false)
@@ -23,7 +40,6 @@ export default function Profile() {
   // Clear wallet
   const [clearStep, setClearStep] = useState<'idle' | 'confirm'>('idle')
 
-  const address = activeAccount?.address ?? ''
   const mnemonicWords = mnemonic ? mnemonic.split(' ') : []
 
   async function handleCopy() {
@@ -71,7 +87,9 @@ export default function Profile() {
       </button>
 
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-2xl font-semibold text-nyx-text tracking-tight">Profile</h1>
+        <h1 className="text-2xl font-semibold text-nyx-text tracking-tight">
+          {profile.firstName ? `Hello, ${profile.firstName} 👋` : 'Profile'}
+        </h1>
         <button
           onClick={() => navigate('/wallet')}
           className="btn-secondary"
@@ -82,6 +100,50 @@ export default function Profile() {
       </div>
 
       <div className="space-y-4">
+
+        {/* Personal Info */}
+        <div className="nyx-card p-6">
+          <p className="text-nyx-muted text-xs uppercase tracking-widest mb-4">Personal Info</p>
+          <form onSubmit={handleProfileSave} className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-nyx-muted text-xs mb-1.5">First Name</label>
+                <input
+                  className={inputCls}
+                  value={profileForm.firstName}
+                  onChange={(e) => setProfileForm((f) => ({ ...f, firstName: e.target.value }))}
+                  placeholder="Alice"
+                />
+              </div>
+              <div>
+                <label className="block text-nyx-muted text-xs mb-1.5">Last Name</label>
+                <input
+                  className={inputCls}
+                  value={profileForm.lastName}
+                  onChange={(e) => setProfileForm((f) => ({ ...f, lastName: e.target.value }))}
+                  placeholder="Smith"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-nyx-muted text-xs mb-1.5">Company</label>
+              <input
+                className={inputCls}
+                value={profileForm.company}
+                onChange={(e) => setProfileForm((f) => ({ ...f, company: e.target.value }))}
+                placeholder="Acme Corp"
+              />
+            </div>
+            <div className="pt-1">
+              <button type="submit" className="btn-secondary">
+                {profileSaved
+                  ? <><Check size={13} strokeWidth={2} className="text-nyx-success" /> Saved</>
+                  : 'Save Info'
+                }
+              </button>
+            </div>
+          </form>
+        </div>
 
         {/* Address */}
         <div className="nyx-card p-6">
