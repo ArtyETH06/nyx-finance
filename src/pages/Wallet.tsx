@@ -9,6 +9,7 @@ import { toast } from '../lib/toast'
 import { TOKENS, NATIVE_TOKEN_ADDRESS, getTokenByAddress, displayAmount, shortenAddress, type Token } from '../lib/tokens'
 
 const EXPLORER = 'https://testnet.monadexplorer.com/tx'
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -16,6 +17,15 @@ const inputCls =
   'w-full bg-nyx-bg border border-[rgba(255,255,255,0.06)] rounded-lg px-3 py-2.5 text-nyx-text text-sm placeholder:text-nyx-muted/40 focus:outline-none focus:border-nyx-accent transition-colors duration-150'
 
 const selectCls = `${inputCls} cursor-pointer pr-8 appearance-none`
+
+function isNativeAddress(address: string): boolean {
+  const lower = address.toLowerCase()
+  return lower === NATIVE_TOKEN_ADDRESS.toLowerCase() || lower === ZERO_ADDRESS
+}
+
+function canonicalTokenAddress(address: string): string {
+  return isNativeAddress(address) ? NATIVE_TOKEN_ADDRESS : address
+}
 
 function SectionHeader({ icon: Icon, title }: { icon: React.ElementType; title: string }) {
   return (
@@ -53,7 +63,7 @@ async function fetchPublicBalance(tokenAddress: string, walletAddress: string): 
 
 export default function Wallet() {
   const navigate = useNavigate()
-  const { ready, walletExists, activeAccount, refresh, deposit, withdraw } = useUnlink()
+  const { ready, walletExists, activeAccount, refresh, deposit, withdraw, getTxStatus } = useUnlink()
   const { balances, loading: balancesLoading } = useUnlinkBalances()
 
   const [depositPending, setDepositPending] = useState(false)
@@ -84,7 +94,14 @@ export default function Wallet() {
   // Auto-select first withdraw token that has a private balance
   useEffect(() => {
     if (!balances || withdrawToken) return
-    const first = TOKENS.find(t => (balances[t.address] ?? 0n) > 0n)
+    const first = TOKENS.find((t) => {
+      const key = t.address.toLowerCase()
+      if (isNativeAddress(t.address)) {
+        return (balances[NATIVE_TOKEN_ADDRESS.toLowerCase()] ?? 0n) > 0n
+          || (balances[ZERO_ADDRESS] ?? 0n) > 0n
+      }
+      return (balances[key] ?? 0n) > 0n
+    })
     if (first) setWithdrawToken(first.address)
   }, [balances, withdrawToken])
 
@@ -183,14 +200,24 @@ export default function Wallet() {
     setWithdrawPending(true)
     try {
       const amount = parseAmount(withdrawAmount, token.decimals)
-      const result = await withdraw([{ token: token.address, amount, recipient: withdrawRecipient }]) as
+      const result = await withdraw([{ token: canonicalTokenAddress(token.address), amount, recipient: withdrawRecipient }]) as
         | { txHash?: string; relayId?: string }
         | undefined
       setWithdrawAmount('')
       await refreshAllBalances(token)
-      const txHash = result?.txHash
+      const relayId = result?.relayId
+      let txHash = result?.txHash
+      if (!txHash && relayId) {
+        try {
+          const status = await getTxStatus(relayId)
+          txHash = status.txHash ?? undefined
+        } catch {
+          // Keep success toast even if tx status fetch fails; relay id is still useful.
+        }
+      }
+      const relayText = relayId ? ` | Relay ID: ${relayId}` : ''
       toast.show(
-        `Withdrew ${withdrawAmount} ${token.symbol} to ${shortenAddress(withdrawRecipient)}`,
+        `Withdrew ${withdrawAmount} ${token.symbol} to ${shortenAddress(withdrawRecipient)}${relayText}`,
         'success',
         txHash ? `${EXPLORER}/${txHash}` : undefined,
       )
@@ -207,7 +234,12 @@ export default function Wallet() {
   const normBalances: Record<string, bigint> = Object.fromEntries(
     Object.entries(balances ?? {}).map(([k, v]) => [k.toLowerCase(), v])
   )
-  const bal = (addr: string) => normBalances[addr.toLowerCase()] ?? 0n
+  const bal = (addr: string) => {
+    if (isNativeAddress(addr)) {
+      return normBalances[NATIVE_TOKEN_ADDRESS.toLowerCase()] ?? normBalances[ZERO_ADDRESS] ?? 0n
+    }
+    return normBalances[addr.toLowerCase()] ?? 0n
+  }
 
   const balanceEntries = Object.entries(balances ?? {}).filter(([, v]) => v > 0n)
   const tokensWithBalance = TOKENS.filter(t => bal(t.address) > 0n)
@@ -266,7 +298,7 @@ export default function Wallet() {
         ) : (
           <div className="space-y-2">
             {balanceEntries.map(([tokenAddress, amount]) => {
-              const token = getTokenByAddress(tokenAddress)
+              const token = getTokenByAddress(canonicalTokenAddress(tokenAddress))
               const decimals = token?.decimals ?? 18
               const symbol = token?.symbol ?? '???'
               return (
@@ -463,11 +495,11 @@ export default function Wallet() {
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs text-nyx-muted">Amount</label>
-              {publicAddress && selectedWithdrawToken && publicWithdrawBalance > 0n && (
+              {selectedWithdrawToken && (
                 <span className="text-xs text-nyx-muted">
-                  Wallet:{' '}
+                  Private balance:{' '}
                   <span className="text-nyx-text">
-                    {displayAmount(publicWithdrawBalance, selectedWithdrawToken.decimals)} {selectedWithdrawToken.symbol}
+                    {displayAmount(privateWithdrawBalance, selectedWithdrawToken.decimals)} {selectedWithdrawToken.symbol}
                   </span>
                 </span>
               )}
