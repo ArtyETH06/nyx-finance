@@ -20,6 +20,13 @@ export interface InvoiceDoc {
     lastName?: string
     company?: string
   }
+  lineItems?: Array<{
+    title: string
+    description: string
+    amount: number
+    quantity?: number
+    unitPrice?: number
+  }>
   title: string
   description: string
   amount: number
@@ -30,6 +37,7 @@ export interface InvoiceDoc {
   rejectionReason: string | null
   pdfHash: string
   createdAt: string
+  dueDate?: string
   updatedAt?: string
   payment?: {
     relayId?: string
@@ -41,6 +49,8 @@ export interface InvoiceDoc {
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017'
 const MONGODB_DB = process.env.MONGODB_DB || 'nyx_finance'
 const COLLECTION = 'contracts'
+const IS_VERCEL = process.env.VERCEL === '1' || process.env.VERCEL === 'true'
+const REQUIRE_REMOTE_DB = IS_VERCEL || process.env.NODE_ENV === 'production'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DATA_DIR = path.join(__dirname, '..', '.data')
@@ -74,6 +84,9 @@ function writeAllFile(data: InvoiceDoc[]) {
 }
 
 async function getCollection() {
+  if (REQUIRE_REMOTE_DB && !process.env.MONGODB_URI) {
+    throw new Error('MONGODB_URI is required in production/serverless environments')
+  }
   if (useFileStore) return null
   try {
     if (!client) {
@@ -82,6 +95,9 @@ async function getCollection() {
     }
     return client.db(MONGODB_DB).collection<InvoiceDoc>(COLLECTION)
   } catch (err) {
+    if (REQUIRE_REMOTE_DB) {
+      throw err
+    }
     useFileStore = true
     if (!warnedFallback) {
       warnedFallback = true

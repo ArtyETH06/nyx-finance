@@ -16,6 +16,26 @@ function parseAmount(value: unknown): number | null {
   return null
 }
 
+function parseLineItems(value: unknown): InvoiceDoc['lineItems'] {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((item) => {
+      const raw = item as Record<string, unknown>
+      const amount = parseAmount(raw.amount)
+      const quantity = raw.quantity == null ? undefined : parseAmount(raw.quantity)
+      const unitPrice = raw.unitPrice == null ? undefined : parseAmount(raw.unitPrice)
+      if (!raw.title || typeof raw.title !== 'string' || amount == null || amount <= 0) return null
+      return {
+        title: raw.title.trim(),
+        description: typeof raw.description === 'string' ? raw.description.trim() : '',
+        amount,
+        quantity: quantity == null ? undefined : quantity,
+        unitPrice: unitPrice == null ? undefined : unitPrice,
+      }
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null)
+}
+
 function setNoStore(res: Response) {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
   res.setHeader('Pragma', 'no-cache')
@@ -34,6 +54,7 @@ contractsRouter.post('/contracts', async (req: Request, res: Response) => {
       title,
       description,
       amount,
+      lineItems,
       tokenAddress,
       tokenSymbol,
       currencySymbol,
@@ -41,15 +62,25 @@ contractsRouter.post('/contracts', async (req: Request, res: Response) => {
       rejectionReason,
       pdfHash,
       createdAt,
+      dueDate,
     } = req.body
 
-    const parsedAmount = parseAmount(amount)
+    const parsedLineItems = parseLineItems(lineItems)
+    const parsedAmount = parsedLineItems.length > 0
+      ? parsedLineItems.reduce((acc, item) => acc + item.amount, 0)
+      : parseAmount(amount)
+    const resolvedTitle = typeof title === 'string' && title.trim()
+      ? title.trim()
+      : parsedLineItems[0]?.title ?? ''
+    const resolvedDescription = typeof description === 'string' && description.trim()
+      ? description.trim()
+      : parsedLineItems[0]?.description ?? ''
     if (
       !invoiceId || typeof invoiceId !== 'string' ||
       !issuerAddress || typeof issuerAddress !== 'string' ||
       !payerAddress || typeof payerAddress !== 'string' ||
-      !title || typeof title !== 'string' ||
-      !description || typeof description !== 'string' ||
+      !resolvedTitle ||
+      !resolvedDescription ||
       parsedAmount == null || parsedAmount <= 0 ||
       !tokenAddress || typeof tokenAddress !== 'string' ||
       !tokenSymbol || typeof tokenSymbol !== 'string' ||
@@ -68,8 +99,9 @@ contractsRouter.post('/contracts', async (req: Request, res: Response) => {
       payerAddress: normalizeAddress(payerAddress),
       issuerInfo: issuerInfo && typeof issuerInfo === 'object' ? issuerInfo : undefined,
       payerInfo: payerInfo && typeof payerInfo === 'object' ? payerInfo : undefined,
-      title,
-      description,
+      lineItems: parsedLineItems.length > 0 ? parsedLineItems : undefined,
+      title: resolvedTitle,
+      description: resolvedDescription,
       amount: parsedAmount,
       tokenAddress,
       tokenSymbol,
@@ -78,6 +110,7 @@ contractsRouter.post('/contracts', async (req: Request, res: Response) => {
       rejectionReason: rejectionReason ?? null,
       pdfHash,
       createdAt: typeof createdAt === 'string' ? createdAt : now,
+      dueDate: typeof dueDate === 'string' ? dueDate : undefined,
       updatedAt: now,
     }
 
@@ -141,6 +174,54 @@ contractsRouter.patch('/contracts/:id', async (req: Request, res: Response) => {
     res.json({ ok: true, invoice: toPublicInvoice(doc) })
   } catch (err) {
     console.error('[PATCH /api/contracts/:id]', err)
+    res.status(500).json({ error: 'Failed to update invoice' })
+  }
+})
+
+// POST /api/contracts/:id/update — compatibility update route for clients/environments
+// where PATCH is blocked by proxy/runtime.
+contractsRouter.post('/contracts/:id/update', async (req: Request, res: Response) => {
+  try {
+    setNoStore(res)
+    const patch: Partial<InvoiceDoc> = {}
+    if (req.body.status != null) patch.status = req.body.status
+    if (req.body.rejectionReason !== undefined) patch.rejectionReason = req.body.rejectionReason
+    if (req.body.payment !== undefined) patch.payment = req.body.payment
+
+    const doc = await db.patchById(req.params.id, patch)
+    if (!doc) {
+      res.status(404).json({ error: 'Invoice not found' })
+      return
+    }
+    res.json({ ok: true, invoice: toPublicInvoice(doc) })
+  } catch (err) {
+    console.error('[POST /api/contracts/:id/update]', err)
+    res.status(500).json({ error: 'Failed to update invoice' })
+  }
+})
+
+// POST /api/contracts/update — compatibility update route that accepts { id, ...patch }.
+contractsRouter.post('/contracts/update', async (req: Request, res: Response) => {
+  try {
+    setNoStore(res)
+    const id = req.body.id as string | undefined
+    if (!id) {
+      res.status(400).json({ error: 'id is required' })
+      return
+    }
+    const patch: Partial<InvoiceDoc> = {}
+    if (req.body.status != null) patch.status = req.body.status
+    if (req.body.rejectionReason !== undefined) patch.rejectionReason = req.body.rejectionReason
+    if (req.body.payment !== undefined) patch.payment = req.body.payment
+
+    const doc = await db.patchById(id, patch)
+    if (!doc) {
+      res.status(404).json({ error: 'Invoice not found' })
+      return
+    }
+    res.json({ ok: true, invoice: toPublicInvoice(doc) })
+  } catch (err) {
+    console.error('[POST /api/contracts/update]', err)
     res.status(500).json({ error: 'Failed to update invoice' })
   }
 })

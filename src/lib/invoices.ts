@@ -6,6 +6,14 @@ export interface InvoicePartyInfo {
   company?: string
 }
 
+export interface InvoiceLineItem {
+  title: string
+  description: string
+  amount: number
+  quantity?: number
+  unitPrice?: number
+}
+
 export interface Invoice {
   _id: string
   invoiceId: string
@@ -13,6 +21,7 @@ export interface Invoice {
   payerAddress: string
   issuerInfo?: InvoicePartyInfo
   payerInfo?: InvoicePartyInfo
+  lineItems: InvoiceLineItem[]
   title: string
   description: string
   amount: number
@@ -23,6 +32,7 @@ export interface Invoice {
   rejectionReason: string | null
   pdfHash: string
   createdAt: string
+  dueDate?: string
   updatedAt?: string
   payment?: {
     relayId?: string
@@ -38,6 +48,7 @@ interface InvoiceLocalOverride {
 }
 
 const LOCAL_OVERRIDES_KEY = 'nyx_invoice_overrides_v1'
+const LOCAL_UPDATES_CHANNEL = 'nyx_invoice_updates_v1'
 
 function readLocalOverrides(): Record<string, InvoiceLocalOverride> {
   if (typeof window === 'undefined') return {}
@@ -93,6 +104,25 @@ export function normalizeInvoiceRecord(raw: Record<string, unknown>): Invoice {
   }
   const issuerInfo = (raw.issuerInfo as Invoice['issuerInfo']) ?? legacyIssuerInfo
   const payerInfo = (raw.payerInfo as Invoice['payerInfo']) ?? legacyPayerInfo
+  const rawLineItems = Array.isArray(raw.lineItems) ? raw.lineItems as Record<string, unknown>[] : []
+  const lineItems = rawLineItems
+    .map((item) => ({
+      title: String(item.title ?? ''),
+      description: String(item.description ?? ''),
+      amount: Number(item.amount ?? 0),
+      quantity: item.quantity == null ? undefined : Number(item.quantity),
+      unitPrice: item.unitPrice == null ? undefined : Number(item.unitPrice),
+    }))
+    .filter((item) => item.title.trim() && Number.isFinite(item.amount))
+  const legacyAmount = Number(raw.amount ?? 0)
+  const normalizedLineItems = lineItems.length > 0
+    ? lineItems
+    : [{
+      title: String(raw.title ?? 'Service'),
+      description: String(raw.description ?? ''),
+      amount: Number.isFinite(legacyAmount) ? legacyAmount : 0,
+    }]
+  const computedTotal = normalizedLineItems.reduce((acc, item) => acc + item.amount, 0)
 
   return {
     _id: String(raw._id ?? ''),
@@ -101,9 +131,12 @@ export function normalizeInvoiceRecord(raw: Record<string, unknown>): Invoice {
     payerAddress: String(raw.payerAddress ?? ''),
     issuerInfo,
     payerInfo,
-    title: String(raw.title ?? ''),
-    description: String(raw.description ?? ''),
-    amount: Number(raw.amount ?? 0),
+    lineItems: normalizedLineItems,
+    title: String(raw.title ?? normalizedLineItems[0]?.title ?? ''),
+    description: String(raw.description ?? normalizedLineItems[0]?.description ?? ''),
+    amount: Number.isFinite(Number(raw.amount))
+      ? Number(raw.amount)
+      : computedTotal,
     tokenAddress,
     tokenSymbol,
     currencySymbol: typeof raw.currencySymbol === 'string' ? raw.currencySymbol : tokenSymbol,
@@ -111,6 +144,7 @@ export function normalizeInvoiceRecord(raw: Record<string, unknown>): Invoice {
     rejectionReason: (raw.rejectionReason as string | null) ?? null,
     pdfHash: String(raw.pdfHash ?? ''),
     createdAt: String(raw.createdAt ?? new Date().toISOString()),
+    dueDate: typeof raw.dueDate === 'string' ? raw.dueDate : undefined,
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : undefined,
     payment: (raw.payment as Invoice['payment']) ?? undefined,
   }
@@ -133,6 +167,17 @@ export function fmtPartyName(info?: InvoicePartyInfo): string {
 
 export function formatIssueDate(iso: string): string {
   return new Date(iso).toISOString().slice(0, 10)
+}
+
+export function computeDueDateIso(createdAtIso: string, days = 30): string {
+  const created = new Date(createdAtIso)
+  const due = new Date(Date.UTC(created.getUTCFullYear(), created.getUTCMonth(), created.getUTCDate() + days))
+  return due.toISOString()
+}
+
+export function formatDueDate(createdAtIso: string, dueDateIso?: string): string {
+  const source = dueDateIso ?? computeDueDateIso(createdAtIso)
+  return new Date(source).toISOString().slice(0, 10)
 }
 
 export function invoiceStatusLabel(status: InvoiceStatus): string {
@@ -169,6 +214,16 @@ export function setInvoiceLocalOverride(
   if (id) data[id] = { ...(data[id] ?? {}), ...next }
   if (invoiceId) data[invoiceId] = { ...(data[invoiceId] ?? {}), ...next }
   writeLocalOverrides(data)
+
+  if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+    try {
+      const channel = new BroadcastChannel(LOCAL_UPDATES_CHANNEL)
+      channel.postMessage({ id, invoiceId, patch })
+      channel.close()
+    } catch {
+      // ignore
+    }
+  }
 }
 
 export function applyInvoiceLocalOverride(invoice: Invoice): Invoice {
@@ -180,5 +235,33 @@ export function applyInvoiceLocalOverride(invoice: Invoice): Invoice {
     status: override.status ?? invoice.status,
     rejectionReason: override.rejectionReason ?? invoice.rejectionReason,
     payment: override.payment ?? invoice.payment,
+  }
+}
+
+export function subscribeInvoiceUpdates(onChange: () => void): () => void {
+  if (typeof window === 'undefined') return () => {}
+
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === LOCAL_OVERRIDES_KEY) onChange()
+  }
+  window.addEventListener('storage', onStorage)
+
+  let channel: BroadcastChannel | null = null
+  const onMessage = () => onChange()
+  if ('BroadcastChannel' in window) {
+    try {
+      channel = new BroadcastChannel(LOCAL_UPDATES_CHANNEL)
+      channel.addEventListener('message', onMessage)
+    } catch {
+      channel = null
+    }
+  }
+
+  return () => {
+    window.removeEventListener('storage', onStorage)
+    if (channel) {
+      channel.removeEventListener('message', onMessage)
+      channel.close()
+    }
   }
 }

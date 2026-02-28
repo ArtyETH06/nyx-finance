@@ -6,12 +6,12 @@ import { toast } from '../../lib/toast'
 import type { Invoice } from '../../lib/invoices'
 import {
   applyInvoiceLocalOverride,
-  fmtPartyName,
+  formatDueDate,
   formatIssueDate,
   invoiceStatusLabel,
-  invoiceStatusPdfText,
   normalizeInvoiceRecord,
   setInvoiceLocalOverride,
+  subscribeInvoiceUpdates,
 } from '../../lib/invoices'
 import { buildInvoicePdf, downloadPdf, sha256Blob } from '../../lib/invoicePdf'
 import { getTokenByAddress } from '../../lib/tokens'
@@ -62,6 +62,23 @@ export default function InvoiceDetail() {
     setLoading(true)
     setError(null)
     try {
+      // Prefer list-by-address first for compatibility with older API versions.
+      if (address) {
+        const listRes = await fetch(`/api/contracts?address=${encodeURIComponent(address)}&ts=${Date.now()}`, {
+          cache: 'no-store',
+        })
+        if (listRes.ok) {
+          const listRaw = await listRes.json() as Record<string, unknown>[]
+          const list = listRaw.map((item) => applyInvoiceLocalOverride(normalizeInvoiceRecord(item)))
+          const match = list.find((inv) => inv._id === id || inv.invoiceId === id)
+          if (match) {
+            setInvoice(match)
+            return
+          }
+        }
+      }
+
+      // Fallback to direct by-id endpoint (new API).
       const res = await fetch(`/api/contracts/${id}?ts=${Date.now()}`, {
         cache: 'no-store',
       })
@@ -69,22 +86,6 @@ export default function InvoiceDetail() {
         const data = await res.json() as Record<string, unknown>
         setInvoice(applyInvoiceLocalOverride(normalizeInvoiceRecord(data)))
         return
-      }
-
-      // Backward compatibility for older API versions that don't expose
-      // GET /api/contracts/:id (or return 404 for legacy id formats).
-      if (res.status === 404 && address) {
-        const listRes = await fetch(`/api/contracts?address=${encodeURIComponent(address)}&ts=${Date.now()}`, {
-          cache: 'no-store',
-        })
-        if (!listRes.ok) throw new Error('Failed to load invoice')
-        const listRaw = await listRes.json() as Record<string, unknown>[]
-        const list = listRaw.map((item) => applyInvoiceLocalOverride(normalizeInvoiceRecord(item)))
-        const match = list.find((inv) => inv._id === id || inv.invoiceId === id)
-        if (match) {
-          setInvoice(match)
-          return
-        }
       }
 
       throw new Error('Failed to load invoice')
@@ -105,6 +106,8 @@ export default function InvoiceDetail() {
     return () => window.clearInterval(timer)
   }, [id, busy, loadInvoice])
 
+  useEffect(() => subscribeInvoiceUpdates(() => { if (!busy) void loadInvoice() }), [busy, loadInvoice])
+
   async function patchInvoice(patch: Record<string, unknown>) {
     if (!id) throw new Error('Missing invoice id')
 
@@ -115,6 +118,20 @@ export default function InvoiceDetail() {
       body: JSON.stringify(patch),
     })
 
+    const tryPostUpdate = async (targetId: string) => fetch(`/api/contracts/${targetId}/update?ts=${Date.now()}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      cache: 'no-store',
+      body: JSON.stringify(patch),
+    })
+
+    const tryPostGenericUpdate = async (targetId: string) => fetch(`/api/contracts/update?ts=${Date.now()}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      cache: 'no-store',
+      body: JSON.stringify({ id: targetId, ...patch }),
+    })
+
     let res = await tryPatch(id)
 
     if (!res.ok && invoice?.invoiceId && invoice.invoiceId !== id) {
@@ -122,13 +139,22 @@ export default function InvoiceDetail() {
     }
 
     if (!res.ok) {
-      if (res.status === 404) {
-        // Compatibility mode for older servers that don't support PATCH /contracts/:id.
-        const fallback = patch as Partial<Pick<Invoice, 'status' | 'payment' | 'rejectionReason'>>
-        setInvoice((prev) => (prev ? { ...prev, ...fallback } : prev))
-        setInvoiceLocalOverride(invoice?._id, invoice?.invoiceId, fallback)
-        return
+      // Compatibility: some environments block PATCH but allow POST.
+      res = await tryPostUpdate(id)
+      if (!res.ok && invoice?.invoiceId && invoice.invoiceId !== id) {
+        res = await tryPostUpdate(invoice.invoiceId)
       }
+    }
+
+    if (!res.ok) {
+      // Compatibility: generic update endpoint.
+      res = await tryPostGenericUpdate(id)
+      if (!res.ok && invoice?.invoiceId && invoice.invoiceId !== id) {
+        res = await tryPostGenericUpdate(invoice.invoiceId)
+      }
+    }
+
+    if (!res.ok) {
       const data = await res.json().catch(() => ({}))
       throw new Error(data.error ?? 'Failed to update invoice')
     }
@@ -229,18 +255,17 @@ export default function InvoiceDetail() {
   async function handleDownloadPdf() {
     if (!invoice) return
     try {
-      const pdf = buildInvoicePdf({
+      const pdf = await buildInvoicePdf({
         invoiceId: invoice.invoiceId,
         issueDate: formatIssueDate(invoice.createdAt),
+        dueDate: formatDueDate(invoice.createdAt, invoice.dueDate),
         issuerAddress: invoice.issuerAddress,
         issuerInfo: invoice.issuerInfo,
         payerAddress: invoice.payerAddress,
         payerInfo: invoice.payerInfo,
-        title: invoice.title,
-        description: invoice.description,
-        amount: invoice.amount,
+        lineItems: invoice.lineItems,
         tokenSymbol: invoice.tokenSymbol,
-        statusText: invoiceStatusPdfText(invoice.status),
+        status: invoice.status,
       })
       const blob = pdf.output('blob')
       const regeneratedHash = await sha256Blob(blob)
@@ -275,6 +300,8 @@ export default function InvoiceDetail() {
   }
   const currentStatus = statusView[invoice.status]
   const currentStatusLabel = invoiceStatusLabel(invoice.status)
+  const issuerName = [invoice.issuerInfo?.firstName, invoice.issuerInfo?.lastName].filter(Boolean).join(' ').trim() || '—'
+  const payerName = [invoice.payerInfo?.firstName, invoice.payerInfo?.lastName].filter(Boolean).join(' ').trim() || '—'
 
   return (
     <main className="px-8 py-10 max-w-4xl space-y-4">
@@ -304,12 +331,18 @@ export default function InvoiceDetail() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
           <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-lg p-4">
             <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-2">Issuer</p>
-            <p className="text-nyx-text text-sm">{fmtPartyName(invoice.issuerInfo)}</p>
+            <p className="text-nyx-text text-sm">{issuerName}</p>
+            {invoice.issuerInfo?.company && (
+              <p className="text-nyx-muted text-xs mt-0.5">{invoice.issuerInfo.company}</p>
+            )}
             <p className="font-mono text-nyx-muted text-xs mt-1 break-all">{invoice.issuerAddress}</p>
           </div>
           <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-lg p-4">
             <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-2">Payer</p>
-            <p className="text-nyx-text text-sm">{fmtPartyName(invoice.payerInfo)}</p>
+            <p className="text-nyx-text text-sm">{payerName}</p>
+            {invoice.payerInfo?.company && (
+              <p className="text-nyx-muted text-xs mt-0.5">{invoice.payerInfo.company}</p>
+            )}
             <p className="font-mono text-nyx-muted text-xs mt-1 break-all">{invoice.payerAddress}</p>
           </div>
         </div>
@@ -374,7 +407,7 @@ export default function InvoiceDetail() {
         </div>
       )}
 
-      {isPayer && invoice.status !== 'rejected' && (
+      {isPayer && invoice.status !== 'rejected' && invoice.status !== 'paid' && (
         <div className="nyx-card p-6">
           <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-4">Actions</p>
 
@@ -396,13 +429,6 @@ export default function InvoiceDetail() {
               {busy ? 'Processing...' : 'Accept & Pay'}
             </button>
           )}
-
-          {invoice.status === 'paid' && (
-            <span className="text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-md bg-[rgba(34,197,94,0.12)] text-nyx-success">
-              Paid
-            </span>
-          )}
-
           {showReject && (
             <div className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.06)] space-y-3">
               <label className="text-xs text-nyx-muted block">Rejection reason</label>

@@ -2,95 +2,297 @@ import { jsPDF } from 'jspdf'
 import SHA256 from 'crypto-js/sha256'
 import CryptoJS from 'crypto-js'
 
-import type { InvoicePartyInfo } from './invoices'
+import nyxLogo from '../images/logo.png'
+import type { InvoiceLineItem, InvoicePartyInfo, InvoiceStatus } from './invoices'
 
 interface InvoicePdfInput {
   invoiceId: string
   issueDate: string
+  dueDate: string
   issuerAddress: string
   issuerInfo?: InvoicePartyInfo
   payerAddress: string
   payerInfo?: InvoicePartyInfo
-  title: string
-  description: string
-  amount: number
+  lineItems: InvoiceLineItem[]
   tokenSymbol: string
-  statusText?: string
+  status: InvoiceStatus
 }
 
-function partyLine(info: InvoicePartyInfo | undefined, address: string): string[] {
-  const full = [info?.firstName, info?.lastName].filter(Boolean).join(' ').trim()
-  const out: string[] = []
-  if (full) out.push(full)
-  if (info?.company) out.push(info.company)
-  out.push(address)
-  return out
+const COLOR = {
+  headerBg: [5, 8, 20] as const,
+  textDark: [17, 24, 39] as const,
+  textMuted: [107, 114, 128] as const,
+  lineLight: [229, 231, 235] as const,
+  rowHeaderBg: [243, 244, 246] as const,
+  statusPending: [245, 158, 11] as const,
+  statusPaid: [34, 197, 94] as const,
+  statusRejected: [239, 68, 68] as const,
 }
 
-export function buildInvoicePdf(input: InvoicePdfInput): jsPDF {
+let cachedLogoDataUrlPromise: Promise<string | null> | null = null
+
+function fmtAmount(value: number): string {
+  return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function fullName(info?: InvoicePartyInfo): string {
+  const name = [info?.firstName, info?.lastName].filter(Boolean).join(' ').trim()
+  return name || '—'
+}
+
+function statusForPdf(status: InvoiceStatus): 'pending' | 'paid' | 'rejected' {
+  if (status === 'paid') return 'paid'
+  if (status === 'rejected') return 'rejected'
+  return 'pending'
+}
+
+function statusBadgeMeta(status: ReturnType<typeof statusForPdf>) {
+  if (status === 'paid') return { label: 'PAID', color: COLOR.statusPaid }
+  if (status === 'rejected') return { label: 'REJECTED', color: COLOR.statusRejected }
+  return { label: 'PENDING', color: COLOR.statusPending }
+}
+
+async function getLogoDataUrl(): Promise<string | null> {
+  if (cachedLogoDataUrlPromise) return cachedLogoDataUrlPromise
+  cachedLogoDataUrlPromise = new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas')
+        canvas.width = img.naturalWidth
+        canvas.height = img.naturalHeight
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          resolve(null)
+          return
+        }
+        ctx.drawImage(img, 0, 0)
+        resolve(canvas.toDataURL('image/png'))
+      } catch {
+        resolve(null)
+      }
+    }
+    img.onerror = () => resolve(null)
+    img.src = nyxLogo
+  })
+  return cachedLogoDataUrlPromise
+}
+
+function drawSectionTitle(doc: jsPDF, x: number, y: number, text: string) {
+  doc.setTextColor(...COLOR.textMuted)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  doc.text(text, x, y)
+}
+
+function drawInfoRow(doc: jsPDF, xLabel: number, xValue: number, y: number, label: string, value: string) {
+  doc.setTextColor(...COLOR.textMuted)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8)
+  doc.text(label, xLabel, y)
+
+  doc.setTextColor(...COLOR.textDark)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(10)
+  doc.text(value, xValue, y)
+}
+
+function drawPartyBlock(doc: jsPDF, x: number, y: number, title: string, info: InvoicePartyInfo | undefined, address: string): number {
+  drawSectionTitle(doc, x, y, title)
+  let cursorY = y + 14
+
+  doc.setTextColor(...COLOR.textDark)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(11)
+  doc.text(fullName(info), x, cursorY)
+  cursorY += 14
+
+  if (info?.company) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.text(info.company, x, cursorY)
+    cursorY += 13
+  }
+
+  doc.setFont('courier', 'normal')
+  doc.setFontSize(8)
+  const wrappedAddress = doc.splitTextToSize(address, 245)
+  doc.text(wrappedAddress, x, cursorY)
+  cursorY += wrappedAddress.length * 10
+
+  return cursorY
+}
+
+function drawServicesHeader(doc: jsPDF, left: number, right: number, y: number, amountLabel: string) {
+  const colService = 120
+  const colAmount = 120
+  const colDescription = (right - left) - colService - colAmount
+
+  doc.setFillColor(...COLOR.rowHeaderBg)
+  doc.rect(left, y, right - left, 24, 'F')
+
+  doc.setDrawColor(...COLOR.lineLight)
+  doc.setLineWidth(0.6)
+  doc.line(left, y, right, y)
+  doc.line(left, y + 24, right, y + 24)
+  doc.line(left, y, left, y + 24)
+  doc.line(left + colService, y, left + colService, y + 24)
+  doc.line(left + colService + colDescription, y, left + colService + colDescription, y + 24)
+  doc.line(right, y, right, y + 24)
+
+  doc.setTextColor(...COLOR.textMuted)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  doc.text('SERVICE', left + 8, y + 15)
+  doc.text('DESCRIPTION', left + colService + 8, y + 15)
+  doc.text(amountLabel, right - 8, y + 15, { align: 'right' })
+}
+
+export async function buildInvoicePdf(input: InvoicePdfInput): Promise<jsPDF> {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' })
   doc.setCreationDate(new Date(`${input.issueDate}T00:00:00.000Z`))
+  doc.setProperties({
+    title: `NYX Invoice ${input.invoiceId}`,
+    subject: 'Invoice',
+    creator: 'NYX',
+    author: 'NYX',
+    keywords: 'nyx,invoice,private,blockchain',
+  })
+  const docAny = doc as unknown as { setFileId?: (id: string) => void }
+  if (typeof docAny.setFileId === 'function') {
+    docAny.setFileId(SHA256(input.invoiceId).toString().slice(0, 32))
+  }
+
   const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
   const left = 44
   const right = pageWidth - 44
 
-  doc.setFillColor(14, 20, 40)
-  doc.rect(0, 0, pageWidth, 106, 'F')
+  const headerHeight = 84
+  doc.setFillColor(...COLOR.headerBg)
+  doc.rect(0, 0, pageWidth, headerHeight, 'F')
 
-  doc.setTextColor(230, 233, 242)
+  const logoDataUrl = await getLogoDataUrl()
+  if (logoDataUrl) {
+    const logoWidth = 84
+    const logoHeight = 28
+    const logoY = (headerHeight - logoHeight) / 2
+    doc.addImage(logoDataUrl, 'PNG', left, logoY, logoWidth, logoHeight)
+  } else {
+    doc.setTextColor(255, 255, 255)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(20)
+    doc.text('NYX', left, 48)
+  }
+
+  const badge = statusBadgeMeta(statusForPdf(input.status))
+  const badgeY = 34
+  const badgeCircleX = right - 130
+  doc.setFillColor(badge.color[0], badge.color[1], badge.color[2])
+  doc.circle(badgeCircleX, badgeY, 4, 'F')
+  doc.setTextColor(badge.color[0], badge.color[1], badge.color[2])
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(24)
-  doc.text('NYX', left, 44)
+  doc.setFontSize(11)
+  doc.text(badge.label, badgeCircleX + 10, badgeY + 3)
 
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10)
-  doc.text('Private Finance on Monad', left, 62)
-  doc.text(`Issue Date: ${input.issueDate}`, right, 44, { align: 'right' })
-  doc.text(`Status: ${input.statusText ?? 'SENT'}`, right, 62, { align: 'right' })
+  let y = headerHeight + 28
 
-  doc.setTextColor(17, 26, 53)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(14)
-  doc.text(`Invoice ${input.invoiceId}`, left, 140)
+  drawSectionTitle(doc, left, y, 'CONTRACT INFORMATION')
+  y += 16
+  const valueX = left + 130
+  drawInfoRow(doc, left, valueX, y, 'INVOICE ID', input.invoiceId)
+  y += 16
+  drawInfoRow(doc, left, valueX, y, 'ISSUE DATE', input.issueDate)
+  y += 16
+  drawInfoRow(doc, left, valueX, y, 'DUE DATE', input.dueDate)
+  y += 26
 
-  let y = 170
-  const labelCol = left
-  const valueCol = left + 150
-  const lineGap = 18
+  const issuerBottom = drawPartyBlock(doc, left, y, 'ISSUER', input.issuerInfo, input.issuerAddress)
+  const payerBottom = drawPartyBlock(doc, left + 260, y, 'PAYER', input.payerInfo, input.payerAddress)
+  y = Math.max(issuerBottom, payerBottom) + 20
 
-  const row = (label: string, value: string) => {
+  drawSectionTitle(doc, left, y, 'SERVICES')
+  y += 12
+
+  const amountColumnLabel = `AMOUNT (${input.tokenSymbol})`
+  drawServicesHeader(doc, left, right, y, amountColumnLabel)
+  y += 24
+
+  const colService = 120
+  const colAmount = 120
+  const colDescription = (right - left) - colService - colAmount
+
+  const drawServicesHeaderWithSection = () => {
+    drawSectionTitle(doc, left, 64, 'SERVICES')
+    drawServicesHeader(doc, left, right, 76, amountColumnLabel)
+    return 100
+  }
+
+  doc.setDrawColor(...COLOR.lineLight)
+  doc.setLineWidth(0.6)
+
+  for (const item of input.lineItems) {
+    const titleLines = doc.splitTextToSize(item.title || 'Service', colService - 16)
+    const descriptionLines = doc.splitTextToSize(item.description || '—', colDescription - 16)
+    const amountText = `${fmtAmount(item.amount)} ${input.tokenSymbol}`
+
+    const lines = Math.max(titleLines.length, descriptionLines.length, 1)
+    const rowHeight = Math.max(28, (lines * 12) + 12)
+
+    if (y + rowHeight + 100 > pageHeight) {
+      doc.addPage()
+      y = drawServicesHeaderWithSection()
+    }
+
+    doc.line(left, y, right, y)
+    doc.line(left, y + rowHeight, right, y + rowHeight)
+    doc.line(left, y, left, y + rowHeight)
+    doc.line(left + colService, y, left + colService, y + rowHeight)
+    doc.line(left + colService + colDescription, y, left + colService + colDescription, y + rowHeight)
+    doc.line(right, y, right, y + rowHeight)
+
+    doc.setTextColor(...COLOR.textDark)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(10)
-    doc.text(label, labelCol, y)
+    doc.text(titleLines, left + 8, y + 16)
+
     doc.setFont('helvetica', 'normal')
-    doc.text(value || '—', valueCol, y)
-    y += lineGap
+    doc.text(descriptionLines, left + colService + 8, y + 16)
+
+    doc.setFont('helvetica', 'bold')
+    doc.text(amountText, right - 8, y + 16, { align: 'right' })
+
+    y += rowHeight
   }
 
-  row('Title', input.title)
-  row('Description', input.description)
-  row('Amount', `${input.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${input.tokenSymbol}`)
-  row('Token', input.tokenSymbol)
+  const total = input.lineItems.reduce((acc, item) => acc + item.amount, 0)
+  y += 14
 
-  y += 10
+  if (y + 80 > pageHeight - 48) {
+    doc.addPage()
+    y = 84
+  }
+
+  doc.setDrawColor(...COLOR.textDark)
+  doc.setLineWidth(0.8)
+  doc.line(left, y, right, y)
+  y += 20
+
+  doc.setTextColor(...COLOR.textDark)
   doc.setFont('helvetica', 'bold')
-  doc.text('Issuer Info', left, y)
-  y += 16
-  for (const line of partyLine(input.issuerInfo, input.issuerAddress)) {
-    doc.setFont('helvetica', 'normal')
-    doc.text(line, left, y)
-    y += 14
-  }
+  doc.setFontSize(11)
+  doc.text('TOTAL', left, y)
+  doc.text(`${fmtAmount(total)} ${input.tokenSymbol}`, right, y, { align: 'right' })
 
-  y += 10
-  doc.setFont('helvetica', 'bold')
-  doc.text('Payer Info', left, y)
-  y += 16
-  for (const line of partyLine(input.payerInfo, input.payerAddress)) {
-    doc.setFont('helvetica', 'normal')
-    doc.text(line, left, y)
-    y += 14
-  }
+  const footerY = pageHeight - 36
+  doc.setDrawColor(...COLOR.lineLight)
+  doc.setLineWidth(0.7)
+  doc.line(left, footerY - 14, right, footerY - 14)
+
+  doc.setTextColor(...COLOR.textMuted)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.text('NYX - Public Blockchain. Private Business', pageWidth / 2, footerY, { align: 'center' })
 
   return doc
 }

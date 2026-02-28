@@ -1,14 +1,17 @@
 import { Link, NavLink } from 'react-router-dom'
 import AddressBox from './AddressBox'
+import nyxLogo from '../images/logo.png'
 
 export default function Header() {
   return (
     <header className="flex items-center justify-between px-6 py-4 bg-nyx-bg border-b border-[rgba(255,255,255,0.06)]">
       <div className="flex items-center gap-10">
         <Link to="/" className="flex flex-col leading-tight group">
-          <span className="text-xl font-semibold text-nyx-text tracking-widest group-hover:text-white transition-colors duration-150">
-            NYX
-          </span>
+          <img
+            src={nyxLogo}
+            alt="NYX"
+            className="h-7 w-auto object-contain mb-0.5 opacity-95 group-hover:opacity-100 transition-opacity duration-150"
+          />
           <span className="text-[11px] text-nyx-muted tracking-wide">
             Public blockchain. Private business.
           </span>

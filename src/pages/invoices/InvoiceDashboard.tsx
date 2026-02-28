@@ -3,7 +3,13 @@ import { useUnlink } from '@unlink-xyz/react'
 import { useNavigate } from 'react-router-dom'
 import { FilePlus, ArrowUpRight, ArrowDownLeft, RefreshCw } from 'lucide-react'
 import type { Invoice } from '../../lib/invoices'
-import { applyInvoiceLocalOverride, fmtPartyName, invoiceStatusLabel, normalizeInvoiceRecord } from '../../lib/invoices'
+import {
+  applyInvoiceLocalOverride,
+  fmtPartyName,
+  invoiceStatusLabel,
+  normalizeInvoiceRecord,
+  subscribeInvoiceUpdates,
+} from '../../lib/invoices'
 
 const STATUS_STYLES: Record<Invoice['status'], string> = {
   sent: 'bg-[rgba(234,179,8,0.16)] text-yellow-300',
@@ -79,6 +85,8 @@ export default function InvoiceDashboard() {
     }, 5000)
     return () => window.clearInterval(timer)
   }, [address])
+
+  useEffect(() => subscribeInvoiceUpdates(() => { void load() }), [address])
 
   return (
     <main className="px-8 py-10 max-w-4xl">

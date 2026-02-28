@@ -3,8 +3,14 @@ import { useNavigate } from 'react-router-dom'
 import { useUnlink } from '@unlink-xyz/react'
 import { toast } from '../../lib/toast'
 import { buildInvoicePdf, sha256Blob } from '../../lib/invoicePdf'
-import { formatIssueDate, invoiceStatusPdfText, makeInvoiceId } from '../../lib/invoices'
+import { computeDueDateIso, formatDueDate, formatIssueDate, makeInvoiceId } from '../../lib/invoices'
 import { INVOICE_TOKEN_OPTIONS, getInvoiceTokenBySymbol, type InvoiceTokenSymbol } from '../../lib/tokens'
+
+interface LineItemForm {
+  title: string
+  description: string
+  amount: string
+}
 
 interface FormState {
   issuerFirstName: string
@@ -14,9 +20,7 @@ interface FormState {
   payerLastName:   string
   payerCompany:    string
   payerAddress:    string
-  title:           string
-  description:     string
-  amount:          string
+  lineItems:       LineItemForm[]
   tokenSymbol:     InvoiceTokenSymbol
 }
 
@@ -28,9 +32,13 @@ const empty: FormState = {
   payerLastName:   'Paymentsalot',
   payerCompany:    'Moon Coffee DAO',
   payerAddress:    'unlink1qyk9ezyexg5rflvfrrzulr8fpzm6el8vdwx68rm894kfv950ea7l9z53jwtfr9y2jx9h07h7svrqru4sct7c8ym8r690qg2mrf3vkx9rdw5hsgvr9aumsjlpsud',
-  title:           'Emergency Coffee Refill Retainer',
-  description:     'Professional services: 7 espresso-fueled architecture reviews, 3 bug exorcisms, and 1 production incident pep talk.',
-  amount:          '42',
+  lineItems:       [
+    {
+      title: 'Emergency Coffee Refill Retainer',
+      description: 'Professional services: 7 espresso-fueled architecture reviews, 3 bug exorcisms, and 1 production incident pep talk.',
+      amount: '42',
+    },
+  ],
   tokenSymbol:     'USDCm',
 }
 
@@ -72,9 +80,32 @@ export default function CreateInvoice() {
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
-  function set(field: keyof FormState) {
+  function set(field: Exclude<keyof FormState, 'lineItems'>) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm((f) => ({ ...f, [field]: e.target.value }))
+  }
+
+  function setLineItem(index: number, field: keyof LineItemForm, value: string) {
+    setForm((prev) => {
+      const next = [...prev.lineItems]
+      next[index] = { ...next[index], [field]: value }
+      return { ...prev, lineItems: next }
+    })
+  }
+
+  function addLineItem() {
+    setForm((prev) => ({
+      ...prev,
+      lineItems: [...prev.lineItems, { title: '', description: '', amount: '' }],
+    }))
+  }
+
+  function removeLineItem(index: number) {
+    setForm((prev) => {
+      if (prev.lineItems.length <= 1) return prev
+      const next = prev.lineItems.filter((_, i) => i !== index)
+      return { ...prev, lineItems: next }
+    })
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -85,13 +116,16 @@ export default function CreateInvoice() {
       setFormError('Payer ZK address is required.')
       return
     }
-    if (!form.title.trim() || !form.description.trim()) {
-      setFormError('Title and description are required.')
-      return
-    }
-    const amount = parseFloat(form.amount)
-    if (isNaN(amount) || amount <= 0) {
-      setFormError('Please enter a valid amount.')
+    const parsedLineItems = form.lineItems
+      .map((item) => ({
+        title: item.title.trim(),
+        description: item.description.trim(),
+        amount: Number(item.amount),
+      }))
+      .filter((item) => item.title && item.description && Number.isFinite(item.amount) && item.amount > 0)
+
+    if (parsedLineItems.length === 0) {
+      setFormError('Please add at least one valid service line item.')
       return
     }
     if (!activeAccount?.address) {
@@ -104,11 +138,15 @@ export default function CreateInvoice() {
       const invoiceId = makeInvoiceId()
       const createdAt = new Date().toISOString()
       const issueDate = formatIssueDate(createdAt)
+      const dueDateIso = computeDueDateIso(createdAt)
+      const dueDate = formatDueDate(createdAt, dueDateIso)
       const selectedToken = getInvoiceTokenBySymbol(form.tokenSymbol)
+      const totalAmount = parsedLineItems.reduce((acc, item) => acc + item.amount, 0)
 
-      const doc = buildInvoicePdf({
+      const doc = await buildInvoicePdf({
         invoiceId,
         issueDate,
+        dueDate,
         issuerAddress: activeAccount.address,
         issuerInfo: {
           firstName: form.issuerFirstName || undefined,
@@ -121,11 +159,9 @@ export default function CreateInvoice() {
           lastName: form.payerLastName || undefined,
           company: form.payerCompany || undefined,
         },
-        title: form.title.trim(),
-        description: form.description.trim(),
-        amount,
+        lineItems: parsedLineItems,
         tokenSymbol: selectedToken.symbol,
-        statusText: invoiceStatusPdfText('sent'),
+        status: 'sent',
       })
 
       const pdfBlob = doc.output('blob')
@@ -154,9 +190,10 @@ export default function CreateInvoice() {
             lastName: form.payerLastName || undefined,
             company: form.payerCompany || undefined,
           },
-          title:       form.title.trim(),
-          description: form.description.trim(),
-          amount,
+          lineItems: parsedLineItems,
+          title: parsedLineItems[0].title,
+          description: parsedLineItems[0].description,
+          amount: totalAmount,
           tokenAddress: selectedToken.address,
           tokenSymbol: selectedToken.symbol,
           currencySymbol: selectedToken.symbol,
@@ -164,6 +201,7 @@ export default function CreateInvoice() {
           rejectionReason: null,
           pdfHash,
           createdAt,
+          dueDate: dueDateIso,
         }),
       })
 
@@ -239,50 +277,71 @@ export default function CreateInvoice() {
         {/* Invoice Details */}
         <div className="nyx-card p-6">
           <SectionLabel>Invoice Details</SectionLabel>
-          <div className="space-y-3">
-            <Field label="Title" required>
-              <input
-                className={inputCls}
-                value={form.title}
-                onChange={set('title')}
-                placeholder="e.g. Design services – March 2026"
-                required
-              />
-            </Field>
-            <Field label="Description" required>
-              <textarea
-                className={`${inputCls} resize-none`}
-                rows={3}
-                value={form.description}
-                onChange={set('description')}
-                placeholder="Describe what this invoice covers..."
-                required
-              />
-            </Field>
-            <Field label="Amount" required>
-              <div className="flex gap-2">
-                <input
-                  className={inputCls}
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={form.amount}
-                  onChange={set('amount')}
-                  placeholder="0.00"
-                  required
-                />
-                <select
-                  className="flex-shrink-0 bg-nyx-bg border border-[rgba(255,255,255,0.06)] rounded-lg text-nyx-muted text-sm font-mono px-3 py-2.5 focus:outline-none focus:border-nyx-accent transition-colors duration-150"
-                  value={form.tokenSymbol}
-                  onChange={(e) => setForm((f) => ({ ...f, tokenSymbol: e.target.value as FormState['tokenSymbol'] }))}
-                >
-                  {INVOICE_TOKEN_OPTIONS.map((opt) => (
-                    <option key={opt.symbol} value={opt.symbol} style={{ backgroundColor: '#0E1428' }}>
-                      {opt.symbol}
-                    </option>
-                  ))}
-                </select>
+          <div className="space-y-4">
+            {form.lineItems.map((item, index) => (
+              <div key={index} className="rounded-lg border border-[rgba(255,255,255,0.06)] p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs uppercase tracking-widest text-nyx-muted">Service {index + 1}</p>
+                  {form.lineItems.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeLineItem(index)}
+                      className="text-xs text-nyx-danger hover:opacity-85"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <Field label="Title" required>
+                  <input
+                    className={inputCls}
+                    value={item.title}
+                    onChange={(e) => setLineItem(index, 'title', e.target.value)}
+                    placeholder="Service title"
+                    required
+                  />
+                </Field>
+                <Field label="Description" required>
+                  <textarea
+                    className={`${inputCls} resize-none`}
+                    rows={2}
+                    value={item.description}
+                    onChange={(e) => setLineItem(index, 'description', e.target.value)}
+                    placeholder="Describe this service line"
+                    required
+                  />
+                </Field>
+                <Field label="Amount" required>
+                  <input
+                    className={inputCls}
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={item.amount}
+                    onChange={(e) => setLineItem(index, 'amount', e.target.value)}
+                    placeholder="0.00"
+                    required
+                  />
+                </Field>
               </div>
+            ))}
+
+            <button type="button" onClick={addLineItem} className="btn-secondary">
+              Add Service Line
+            </button>
+
+            <Field label="Token" required>
+              <select
+                className="w-full bg-nyx-bg border border-[rgba(255,255,255,0.06)] rounded-lg text-nyx-muted text-sm font-mono px-3 py-2.5 focus:outline-none focus:border-nyx-accent transition-colors duration-150"
+                value={form.tokenSymbol}
+                onChange={(e) => setForm((f) => ({ ...f, tokenSymbol: e.target.value as FormState['tokenSymbol'] }))}
+              >
+                {INVOICE_TOKEN_OPTIONS.map((opt) => (
+                  <option key={opt.symbol} value={opt.symbol} style={{ backgroundColor: '#0E1428' }}>
+                    {opt.symbol}
+                  </option>
+                ))}
+              </select>
             </Field>
           </div>
         </div>
