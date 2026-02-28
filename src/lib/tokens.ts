@@ -8,18 +8,28 @@ export interface Token {
 }
 
 // Token registry for monad-testnet.
-// Set VITE_USDC_ADDRESS in your .env to the USDC contract address.
-// Get the address from https://faucet.unlink.xyz
 export const TOKENS: Token[] = [
   {
-    address: (import.meta.env.VITE_USDC_ADDRESS as string) || '',
-    symbol: 'USDC',
-    decimals: 6,
-    name: 'USD Coin',
+    address: '0xaaa4e95d4da878baf8e10745fdf26e196918df6b',
+    symbol: 'UNLKm',
+    decimals: 18,
+    name: 'Unlink (monad testnet)',
+  },
+  {
+    address: '0xc4fb617e4e4cfbdeb07216dff62b4e46a2d6fdf6',
+    symbol: 'USDCm',
+    decimals: 18,
+    name: 'USD Coin (monad testnet)',
+  },
+  {
+    address: '0x86b6341d3c56bc379697d247fc080f5f2c8eed7b',
+    symbol: 'USDTm',
+    decimals: 18,
+    name: 'Tether USD (monad testnet)',
   },
 ]
 
-export const USDC = TOKENS[0]
+export const USDC = TOKENS.find(t => t.symbol === 'USDCm')!
 
 export function getTokenByAddress(address: string): Token | undefined {
   return TOKENS.find((t) => t.address.toLowerCase() === address.toLowerCase())

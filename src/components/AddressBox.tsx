@@ -68,18 +68,18 @@ export default function AddressBox() {
           onMouseLeave={() => setDropdownOpen(false)}
         >
           <button
-            onClick={() => { setDropdownOpen(false); navigate('/wallet') }}
-            className="w-full text-left px-4 py-3 text-sm text-nyx-muted hover:text-nyx-text hover:bg-[rgba(255,255,255,0.04)] transition-all duration-150 flex items-center gap-3"
-          >
-            <LayoutDashboard size={14} strokeWidth={1.5} />
-            Wallet
-          </button>
-          <button
             onClick={() => { setDropdownOpen(false); navigate('/profile') }}
             className="w-full text-left px-4 py-3 text-sm text-nyx-muted hover:text-nyx-text hover:bg-[rgba(255,255,255,0.04)] transition-all duration-150 flex items-center gap-3"
           >
             <User size={14} strokeWidth={1.5} />
             Profile
+          </button>
+          <button
+            onClick={() => { setDropdownOpen(false); navigate('/wallet') }}
+            className="w-full text-left px-4 py-3 text-sm text-nyx-muted hover:text-nyx-text hover:bg-[rgba(255,255,255,0.04)] transition-all duration-150 flex items-center gap-3"
+          >
+            <LayoutDashboard size={14} strokeWidth={1.5} />
+            Wallet
           </button>
         </div>
       )}

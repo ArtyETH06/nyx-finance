@@ -2,16 +2,18 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUnlink, useUnlinkBalances, useDeposit, useWithdraw, parseAmount } from '@unlink-xyz/react'
 import {
-  Copy, Wifi, ShieldCheck, Wallet as WalletIcon,
-  ArrowDownToLine, ArrowUpFromLine, Link as LinkIcon,
+  Wifi, ShieldCheck, Wallet as WalletIcon,
+  ArrowDownToLine, ArrowUpFromLine, Link as LinkIcon, ChevronDown,
 } from 'lucide-react'
 import { toast } from '../lib/toast'
-import { USDC, getTokenByAddress, displayAmount, shortenAddress } from '../lib/tokens'
+import { TOKENS, getTokenByAddress, displayAmount, shortenAddress } from '../lib/tokens'
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
 const inputCls =
   'w-full bg-nyx-bg border border-[rgba(255,255,255,0.06)] rounded-lg px-3 py-2.5 text-nyx-text text-sm placeholder:text-nyx-muted/40 focus:outline-none focus:border-nyx-accent transition-colors duration-150'
+
+const selectCls = `${inputCls} cursor-pointer pr-8 appearance-none`
 
 function SectionHeader({ icon: Icon, title }: { icon: React.ElementType; title: string }) {
   return (
@@ -20,6 +22,20 @@ function SectionHeader({ icon: Icon, title }: { icon: React.ElementType; title: 
       <p className="text-[10px] font-semibold tracking-widest text-nyx-muted uppercase">{title}</p>
     </div>
   )
+}
+
+async function fetchPublicBalance(tokenAddress: string, walletAddress: string): Promise<bigint> {
+  if (!window.ethereum) return 0n
+  try {
+    const data = '0x70a08231' + walletAddress.slice(2).padStart(64, '0')
+    const result: string = await window.ethereum.request({
+      method: 'eth_call',
+      params: [{ to: tokenAddress, data }, 'latest'],
+    })
+    return result && result !== '0x' ? BigInt(result) : 0n
+  } catch {
+    return 0n
+  }
 }
 
 // ── component ────────────────────────────────────────────────────────────────
@@ -32,24 +48,56 @@ export default function Wallet() {
   const { execute: withdrawExec, isPending: withdrawPending } = useWithdraw()
 
   const [copied, setCopied] = useState(false)
+  const [copiedToken, setCopiedToken] = useState<string | null>(null)
   const [publicAddress, setPublicAddress] = useState<string | null>(null)
+
+  // Deposit
+  const [depositToken, setDepositToken] = useState(TOKENS[0].address)
   const [depositAmount, setDepositAmount] = useState('')
+  const [publicDepositBalance, setPublicDepositBalance] = useState<bigint>(0n)
+
+  // Withdraw
+  const [withdrawToken, setWithdrawToken] = useState('')
   const [withdrawAmount, setWithdrawAmount] = useState('')
+  const [withdrawRecipient, setWithdrawRecipient] = useState('')
+  const [publicWithdrawBalance, setPublicWithdrawBalance] = useState<bigint>(0n)
 
   const address = activeAccount?.address ?? ''
 
-  // Guard — redirect if wallet not ready
+  // Guard
   useEffect(() => {
-    if (ready && (!walletExists || !activeAccount)) {
-      navigate('/')
-    }
+    if (ready && (!walletExists || !activeAccount)) navigate('/')
   }, [ready, walletExists, activeAccount, navigate])
+
+  // Auto-select first withdraw token that has a private balance
+  useEffect(() => {
+    if (!balances || withdrawToken) return
+    const first = TOKENS.find(t => (balances[t.address] ?? 0n) > 0n)
+    if (first) setWithdrawToken(first.address)
+  }, [balances, withdrawToken])
+
+  // Fetch public balance for selected deposit token
+  useEffect(() => {
+    if (!publicAddress || !depositToken) { setPublicDepositBalance(0n); return }
+    fetchPublicBalance(depositToken, publicAddress).then(setPublicDepositBalance)
+  }, [publicAddress, depositToken])
+
+  // Fetch public balance for selected withdraw token
+  useEffect(() => {
+    if (!publicAddress || !withdrawToken) { setPublicWithdrawBalance(0n); return }
+    fetchPublicBalance(withdrawToken, publicAddress).then(setPublicWithdrawBalance)
+  }, [publicAddress, withdrawToken])
 
   async function handleCopyAddress() {
     await navigator.clipboard.writeText(address)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }
+
+  // Pre-fill withdraw recipient when public wallet connects (but leave editable)
+  useEffect(() => {
+    if (publicAddress && !withdrawRecipient) setWithdrawRecipient(publicAddress)
+  }, [publicAddress, withdrawRecipient])
 
   async function connectPublicWallet() {
     if (!window.ethereum) {
@@ -67,14 +115,11 @@ export default function Wallet() {
 
   async function handleDeposit() {
     if (!publicAddress || !depositAmount) return
-    if (!USDC.address) {
-      toast.show('USDC address not configured. Set VITE_USDC_ADDRESS in .env.', 'error')
-      return
-    }
+    const token = getTokenByAddress(depositToken)
+    if (!token) return
     try {
-      const amount = parseAmount(depositAmount, USDC.decimals)
-      const result = await depositExec([{ token: USDC.address, amount, depositor: publicAddress }])
-      // Submit the on-chain EVM transaction via the connected public wallet
+      const amount = parseAmount(depositAmount, token.decimals)
+      const result = await depositExec([{ token: token.address, amount, depositor: publicAddress }])
       if (result && window.ethereum) {
         const r = result as { to?: string; calldata?: string }
         if (r.to && r.calldata) {
@@ -93,14 +138,12 @@ export default function Wallet() {
   }
 
   async function handleWithdraw() {
-    if (!publicAddress || !withdrawAmount) return
-    if (!USDC.address) {
-      toast.show('USDC address not configured. Set VITE_USDC_ADDRESS in .env.', 'error')
-      return
-    }
+    if (!withdrawRecipient || !withdrawAmount || !withdrawToken) return
+    const token = getTokenByAddress(withdrawToken)
+    if (!token) return
     try {
-      const amount = parseAmount(withdrawAmount, USDC.decimals)
-      await withdrawExec([{ token: USDC.address, amount, recipient: publicAddress }])
+      const amount = parseAmount(withdrawAmount, token.decimals)
+      await withdrawExec([{ token: token.address, amount, recipient: withdrawRecipient }])
       await refresh()
       setWithdrawAmount('')
       toast.show('Withdrawal submitted. Balances will update shortly.')
@@ -111,8 +154,12 @@ export default function Wallet() {
 
   if (!ready || !activeAccount) return null
 
-  // Balances entries — filter zero amounts for cleanliness
   const balanceEntries = Object.entries(balances ?? {}).filter(([, v]) => v > 0n)
+  const tokensWithBalance = TOKENS.filter(t => (balances?.[t.address] ?? 0n) > 0n)
+
+  const selectedDepositToken = getTokenByAddress(depositToken)
+  const selectedWithdrawToken = withdrawToken ? getTokenByAddress(withdrawToken) : null
+  const privateWithdrawBalance = withdrawToken ? (balances?.[withdrawToken] ?? 0n) : 0n
 
   return (
     <main className="max-w-2xl mx-auto px-6 py-12 space-y-5">
@@ -133,16 +180,20 @@ export default function Wallet() {
         </div>
 
         <p className="text-nyx-muted text-xs uppercase tracking-widest mb-2">ZK Address</p>
-        <p className="font-mono text-nyx-text text-sm break-all mb-1">{address}</p>
-        <div className="flex items-center gap-3 mt-3">
-          <span className="font-mono text-nyx-muted text-xs">{shortenAddress(address)}</span>
-          <button
-            onClick={handleCopyAddress}
-            className="btn-secondary text-xs py-1.5"
-          >
-            <Copy size={12} strokeWidth={1.5} />
-            {copied ? 'Copied!' : 'Copy'}
-          </button>
+        <div
+          className="relative group cursor-pointer inline-block w-full"
+          onClick={handleCopyAddress}
+        >
+          <p className={`font-mono text-sm break-all transition-colors duration-150 select-none ${
+            copied ? 'text-nyx-success' : 'text-nyx-text group-hover:text-nyx-accent'
+          }`}>
+            {copied ? 'Copied!' : address}
+          </p>
+          {!copied && (
+            <span className="absolute -top-7 left-0 text-[10px] text-nyx-muted bg-nyx-secondary border border-[rgba(255,255,255,0.08)] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap pointer-events-none z-10">
+              Click to copy
+            </span>
+          )}
         </div>
       </div>
 
@@ -170,7 +221,21 @@ export default function Wallet() {
                 >
                   <div>
                     <p className="text-nyx-text text-sm font-medium">{symbol}</p>
-                    <p className="text-nyx-muted text-[10px] font-mono mt-0.5">{shortenAddress(tokenAddress)}</p>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(tokenAddress)
+                        setCopiedToken(tokenAddress)
+                        setTimeout(() => setCopiedToken(null), 1500)
+                      }}
+                      title={tokenAddress}
+                      className={`text-[10px] font-mono mt-0.5 transition-colors duration-150 cursor-copy ${
+                        copiedToken === tokenAddress
+                          ? 'text-nyx-success'
+                          : 'text-nyx-muted hover:text-nyx-text'
+                      }`}
+                    >
+                      {copiedToken === tokenAddress ? 'Copied!' : shortenAddress(tokenAddress)}
+                    </button>
                   </div>
                   <p className="text-nyx-text font-semibold tabular-nums">
                     {displayAmount(amount, decimals)}
@@ -183,14 +248,12 @@ export default function Wallet() {
         )}
       </div>
 
-      {/* ── Public wallet connector (shared by sections 3 & 4) ───── */}
+      {/* ── Public wallet connector ───────────────────────────────── */}
       {!publicAddress ? (
         <div className="nyx-card p-6">
           <div className="flex items-center gap-2 mb-2">
             <LinkIcon size={14} className="text-nyx-muted" strokeWidth={1.5} />
-            <p className="text-[10px] font-semibold tracking-widest text-nyx-muted uppercase">
-              Public Wallet
-            </p>
+            <p className="text-[10px] font-semibold tracking-widest text-nyx-muted uppercase">Public Wallet</p>
           </div>
           <p className="text-nyx-muted text-sm mb-4">
             Connect a public EVM wallet (MetaMask) to enable deposits and withdrawals.
@@ -223,14 +286,38 @@ export default function Wallet() {
         </p>
 
         <div className="space-y-3">
+          {/* Token dropdown */}
           <div>
             <label className="text-xs text-nyx-muted mb-1.5 block">Token</label>
-            <div className={`${inputCls} text-nyx-muted cursor-default`}>
-              USDC{!USDC.address && <span className="text-nyx-danger ml-2 text-xs">— address not configured</span>}
+            <div className="relative">
+              <select
+                value={depositToken}
+                onChange={(e) => { setDepositToken(e.target.value); setDepositAmount('') }}
+                className={selectCls}
+              >
+                {TOKENS.map(t => (
+                  <option key={t.address} value={t.address} style={{ backgroundColor: '#0E1428' }}>
+                    {t.symbol}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-nyx-muted pointer-events-none" strokeWidth={1.5} />
             </div>
           </div>
+
+          {/* Amount */}
           <div>
-            <label className="text-xs text-nyx-muted mb-1.5 block">Amount</label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs text-nyx-muted">Amount</label>
+              {publicAddress && selectedDepositToken && (
+                <span className="text-xs text-nyx-muted">
+                  Balance:{' '}
+                  <span className="text-nyx-text">
+                    {displayAmount(publicDepositBalance, selectedDepositToken.decimals)} {selectedDepositToken.symbol}
+                  </span>
+                </span>
+              )}
+            </div>
             <div className="flex gap-2">
               <input
                 className={inputCls}
@@ -241,15 +328,29 @@ export default function Wallet() {
                 value={depositAmount}
                 onChange={(e) => setDepositAmount(e.target.value)}
               />
-              <div className="flex-shrink-0 flex items-center px-4 bg-nyx-bg border border-[rgba(255,255,255,0.06)] rounded-lg text-nyx-muted text-sm font-mono">
-                USDC
-              </div>
+              {publicAddress && selectedDepositToken && publicDepositBalance > 0n && (
+                <>
+                  <button
+                    onClick={() => setDepositAmount(displayAmount(publicDepositBalance / 2n, selectedDepositToken.decimals))}
+                    className="btn-secondary flex-shrink-0 px-3 text-xs"
+                  >
+                    Half
+                  </button>
+                  <button
+                    onClick={() => setDepositAmount(displayAmount(publicDepositBalance, selectedDepositToken.decimals))}
+                    className="btn-secondary flex-shrink-0 px-3 text-xs"
+                  >
+                    Max
+                  </button>
+                </>
+              )}
             </div>
           </div>
+
           {publicAddress && (
             <div>
               <label className="text-xs text-nyx-muted mb-1.5 block">From (public wallet)</label>
-              <div className={`${inputCls} font-mono text-nyx-muted cursor-default`}>
+              <div className={`${inputCls} font-mono text-nyx-muted/50 cursor-not-allowed select-none opacity-60`}>
                 {publicAddress}
               </div>
             </div>
@@ -280,14 +381,52 @@ export default function Wallet() {
         </p>
 
         <div className="space-y-3">
+          {/* Token dropdown — only tokens with private balance */}
           <div>
             <label className="text-xs text-nyx-muted mb-1.5 block">Token</label>
-            <div className={`${inputCls} text-nyx-muted cursor-default`}>
-              USDC{!USDC.address && <span className="text-nyx-danger ml-2 text-xs">— address not configured</span>}
-            </div>
+            {tokensWithBalance.length === 0 ? (
+              <div className={`${inputCls} text-nyx-muted/50 cursor-default`}>No tokens available</div>
+            ) : (
+              <div className="relative">
+                <select
+                  value={withdrawToken}
+                  onChange={(e) => { setWithdrawToken(e.target.value); setWithdrawAmount('') }}
+                  className={selectCls}
+                >
+                  {tokensWithBalance.map(t => (
+                    <option key={t.address} value={t.address} style={{ backgroundColor: '#0E1428' }}>
+                      {t.symbol}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-nyx-muted pointer-events-none" strokeWidth={1.5} />
+              </div>
+            )}
           </div>
+
+          {/* Amount */}
           <div>
-            <label className="text-xs text-nyx-muted mb-1.5 block">Amount</label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs text-nyx-muted">Amount</label>
+              {selectedWithdrawToken && (
+                <div className="flex items-center gap-3 text-xs text-nyx-muted">
+                  <span>
+                    Private:{' '}
+                    <span className="text-nyx-text">
+                      {displayAmount(privateWithdrawBalance, selectedWithdrawToken.decimals)} {selectedWithdrawToken.symbol}
+                    </span>
+                  </span>
+                  {publicAddress && publicWithdrawBalance > 0n && (
+                    <span>
+                      Wallet:{' '}
+                      <span className="text-nyx-text">
+                        {displayAmount(publicWithdrawBalance, selectedWithdrawToken.decimals)} {selectedWithdrawToken.symbol}
+                      </span>
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
             <div className="flex gap-2">
               <input
                 className={inputCls}
@@ -298,24 +437,40 @@ export default function Wallet() {
                 value={withdrawAmount}
                 onChange={(e) => setWithdrawAmount(e.target.value)}
               />
-              <div className="flex-shrink-0 flex items-center px-4 bg-nyx-bg border border-[rgba(255,255,255,0.06)] rounded-lg text-nyx-muted text-sm font-mono">
-                USDC
-              </div>
+              {selectedWithdrawToken && privateWithdrawBalance > 0n && (
+                <>
+                  <button
+                    onClick={() => setWithdrawAmount(displayAmount(privateWithdrawBalance / 2n, selectedWithdrawToken.decimals))}
+                    className="btn-secondary flex-shrink-0 px-3 text-xs"
+                  >
+                    Half
+                  </button>
+                  <button
+                    onClick={() => setWithdrawAmount(displayAmount(privateWithdrawBalance, selectedWithdrawToken.decimals))}
+                    className="btn-secondary flex-shrink-0 px-3 text-xs"
+                  >
+                    Max
+                  </button>
+                </>
+              )}
             </div>
           </div>
+
           <div>
-            <label className="text-xs text-nyx-muted mb-1.5 block">
-              Recipient (public wallet)
-            </label>
-            <div className={`${inputCls} font-mono text-nyx-muted cursor-default`}>
-              {publicAddress ?? <span className="text-nyx-muted/50">Connect a public wallet above</span>}
-            </div>
+            <label className="text-xs text-nyx-muted mb-1.5 block">Recipient address</label>
+            <input
+              className={`${inputCls} font-mono`}
+              type="text"
+              placeholder="0x..."
+              value={withdrawRecipient}
+              onChange={(e) => setWithdrawRecipient(e.target.value)}
+            />
           </div>
         </div>
 
         <button
           onClick={handleWithdraw}
-          disabled={withdrawPending || !publicAddress || !withdrawAmount}
+          disabled={withdrawPending || !withdrawRecipient || !withdrawAmount || !withdrawToken}
           className="btn-primary mt-5 disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
         >
@@ -323,9 +478,6 @@ export default function Wallet() {
           {withdrawPending ? 'Processing...' : 'Withdraw'}
         </button>
 
-        {!publicAddress && (
-          <p className="text-nyx-muted text-xs mt-3 text-center">Connect a public wallet above to enable withdrawals.</p>
-        )}
       </div>
 
     </main>
