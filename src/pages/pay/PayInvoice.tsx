@@ -83,7 +83,7 @@ export default function PayInvoice() {
   const { id } = useParams()
   const [invoice, setInvoice] = useState<Invoice | null>(null)
   const [loading, setLoading] = useState(true)
-  const [loadingDots, setLoadingDots] = useState(1)
+  const [loadingDots, setLoadingDots] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [payerAddress, setPayerAddress] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
@@ -278,9 +278,10 @@ export default function PayInvoice() {
 
   useEffect(() => {
     if (!loading) return
+    setLoadingDots(0)
     const timer = window.setInterval(() => {
-      setLoadingDots((prev) => (prev % 3) + 1)
-    }, 450)
+      setLoadingDots((prev) => (prev + 1) % 3)
+    }, 350)
     return () => window.clearInterval(timer)
   }, [loading])
 
@@ -457,11 +458,12 @@ export default function PayInvoice() {
   }
 
   if (loading) {
+    const dots = ['.', '..', '...'][loadingDots]
     return (
-      <main className="px-6 py-10 min-h-[60vh] flex items-center justify-center">
+      <main className="fixed inset-0 flex items-center justify-center">
         <div className="text-nyx-muted text-sm inline-flex items-center gap-2">
           <Loader2 size={14} className="animate-spin text-nyx-accent" />
-          {`Loading Payment Page${'.'.repeat(loadingDots)}`}
+          {`Loading Payment Page${dots}`}
         </div>
       </main>
     )
@@ -506,7 +508,7 @@ export default function PayInvoice() {
         : 'text-yellow-300'
 
   return (
-    <main className="px-6 py-10 min-h-[calc(100vh-220px)] flex items-start justify-center">
+    <main className="px-6 py-10 min-h-[calc(100vh-220px)] flex items-center justify-center">
       <div className="nyx-card p-6 space-y-5 w-full max-w-2xl">
         <div>
           <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Invoice Payment</p>
@@ -521,8 +523,9 @@ export default function PayInvoice() {
           <div>
             <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Amount</p>
             <p className="text-nyx-text text-sm">
-              ${invoice.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
-              <code className="font-mono text-[12px] text-nyx-muted">`{invoice.tokenSymbol}`</code>
+              <code className="font-mono text-[12px] text-nyx-text">
+                {`${invoice.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $${invoice.tokenSymbol}`}
+              </code>
             </p>
           </div>
           <div>
@@ -535,9 +538,6 @@ export default function PayInvoice() {
           </div>
         </div>
 
-        {invoice.status === 'paid' && (
-          <p className="text-nyx-success text-sm">This invoice has already been paid.</p>
-        )}
         {invoice.status === 'rejected' && (
           <div className="rounded-lg border border-nyx-danger/35 bg-[rgba(239,68,68,0.08)] px-3 py-2">
             <p className="text-nyx-danger text-sm font-medium">This invoice has been rejected.</p>
@@ -621,7 +621,7 @@ export default function PayInvoice() {
               }
               className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {primaryButtonLabel}
+              {invoice.status === 'paid' ? 'Paid !' : primaryButtonLabel}
             </button>
           </div>
         </div>
@@ -635,26 +635,33 @@ export default function PayInvoice() {
 
         {error && <p className="text-sm text-nyx-danger">{error}</p>}
 
-        {confirmedTxHash && (
-          <a
-            className="text-sm text-nyx-success inline-flex items-center gap-1.5 underline break-all"
-            href={explorerUrl(confirmedTxHash)}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <ExternalLink size={13} />
-            View on Explorer
-          </a>
-        )}
+        {(confirmedTxHash || receiptBlob) && (
+          <div className="space-y-3">
+            {confirmedTxHash && (
+              <div className="text-sm text-nyx-success inline-flex items-center gap-2 break-all">
+                <span>Payment confirmed</span>
+                <a
+                  className="inline-flex items-center gap-1.5 underline"
+                  href={explorerUrl(confirmedTxHash)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <ExternalLink size={13} />
+                  View on Explorer
+                </a>
+              </div>
+            )}
 
-        {receiptBlob && (
-          <button
-            className="btn-secondary"
-            onClick={() => downloadPdf(receiptBlob, `NYX-Receipt-${invoice.invoiceId}.pdf`)}
-          >
-            <Download size={13} />
-            Download Receipt
-          </button>
+            {receiptBlob && (
+              <button
+                className="btn-secondary"
+                onClick={() => downloadPdf(receiptBlob, `NYX-Receipt-${invoice.invoiceId}.pdf`)}
+              >
+                <Download size={13} />
+                Download Receipt
+              </button>
+            )}
+          </div>
         )}
       </div>
       <FiatModal

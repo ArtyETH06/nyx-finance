@@ -17,7 +17,7 @@ const ERC20_ABI = [
 const erc20Interface = new Interface(ERC20_ABI)
 
 function usdToTokenRate(token: FiatToken): number {
-  if (token === 'MON') return 45
+  if (token === 'MON') return 50
   if (token === 'USDCm') return 1
   if (token === 'USDT') return 1
   return 2 // UNLKm

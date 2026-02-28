@@ -15,7 +15,7 @@ interface FiatStepBuyProps {
 }
 
 const USD_TO_TOKEN_RATE: Record<FiatToken, number> = {
-  MON: 45,
+  MON: 50,
   USDCm: 1,
   USDT: 1,
   UNLKm: 2,

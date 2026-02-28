@@ -332,7 +332,7 @@ export default function InvoiceDetail() {
 
   if (error || !invoice) {
     return (
-      <main className="px-8 py-10 max-w-4xl mx-auto">
+      <main className="px-8 py-10 max-w-3xl mx-auto">
         <div className="nyx-card p-6 border-nyx-danger/20 text-nyx-danger text-sm">
           {error ?? 'Invoice not found'}
         </div>
@@ -352,7 +352,7 @@ export default function InvoiceDetail() {
   const payerName = [invoice.payerInfo?.firstName, invoice.payerInfo?.lastName].filter(Boolean).join(' ').trim() || '—'
 
   return (
-    <main className="px-8 py-10 max-w-4xl mx-auto space-y-4">
+    <main className="px-8 py-10 max-w-3xl mx-auto space-y-4">
       <button
         onClick={() => navigate('/invoices')}
         className="btn-ghost text-nyx-muted text-sm hover:text-nyx-text inline-flex items-center gap-1.5"
