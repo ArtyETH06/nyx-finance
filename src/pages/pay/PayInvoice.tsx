@@ -452,7 +452,7 @@ export default function PayInvoice() {
 
   if (loading) {
     return (
-      <main className="px-6 py-10 max-w-3xl mx-auto">
+      <main className="px-6 py-10 max-w-3xl mx-auto min-h-[60vh] flex items-center justify-center">
         <div className="nyx-card p-6 text-nyx-muted text-sm inline-flex items-center gap-2">
           <Loader2 size={14} className="animate-spin text-nyx-accent" />
           Loading payment page...
