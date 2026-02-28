@@ -1,4 +1,7 @@
 import { Unlink, createMemoryStorage } from '@unlink-xyz/core'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
 type RelayStatus = {
   state?: string
@@ -6,9 +9,19 @@ type RelayStatus = {
   error?: string
 }
 
+function isRelayNotFoundError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false
+  const anyErr = err as { status?: number; body?: { code?: string }; message?: string }
+  if (anyErr.status === 404) return true
+  if (anyErr.body?.code === 'not_found') return true
+  return typeof anyErr.message === 'string' && anyErr.message.toLowerCase().includes('relay not found')
+}
+
 const DEFAULT_CHAIN = 'monad-testnet'
 const DEFAULT_TIMEOUT_MS = 240_000
 const POLL_INTERVAL_MS = 2_000
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const SETTLEMENT_FILE = path.join(__dirname, '..', '..', '.data', 'settlement_mnemonic.txt')
 
 let unlinkPromise: Promise<Unlink> | null = null
 
@@ -16,6 +29,25 @@ function env(name: string): string | undefined {
   const value = process.env[name]
   if (!value || !value.trim()) return undefined
   return value.trim()
+}
+
+function readLocalMnemonic(): string | null {
+  try {
+    if (!fs.existsSync(SETTLEMENT_FILE)) return null
+    const value = fs.readFileSync(SETTLEMENT_FILE, 'utf-8').trim()
+    return value || null
+  } catch {
+    return null
+  }
+}
+
+function writeLocalMnemonic(value: string) {
+  try {
+    fs.mkdirSync(path.dirname(SETTLEMENT_FILE), { recursive: true })
+    fs.writeFileSync(SETTLEMENT_FILE, value.trim(), 'utf-8')
+  } catch {
+    // non-fatal; runtime can still proceed in-memory
+  }
 }
 
 async function waitForRelaySuccess(unlink: Unlink, relayId: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<RelayStatus> {
@@ -41,7 +73,9 @@ async function waitForRelaySuccess(unlink: Unlink, relayId: string, timeoutMs = 
 async function getSettlementUnlink(): Promise<Unlink> {
   if (!unlinkPromise) {
     unlinkPromise = (async () => {
-      const mnemonic = env('NYX_SETTLEMENT_MNEMONIC')
+      const envMnemonic = env('NYX_SETTLEMENT_MNEMONIC')
+      const localMnemonic = readLocalMnemonic()
+      const mnemonic = envMnemonic ?? localMnemonic ?? undefined
 
       const unlink = await Unlink.create({
         chain: (env('NYX_UNLINK_CHAIN') ?? DEFAULT_CHAIN) as 'monad-testnet',
@@ -53,9 +87,11 @@ async function getSettlementUnlink(): Promise<Unlink> {
       if (!seedExists) {
         if (mnemonic) {
           await unlink.seed.importMnemonic(mnemonic, { overwrite: false })
+          if (!envMnemonic) writeLocalMnemonic(mnemonic)
         } else {
-          await unlink.seed.create()
-          console.warn('[payment] NYX_SETTLEMENT_MNEMONIC is not set. Using ephemeral in-memory settlement wallet for this process.')
+          const created = await unlink.seed.create()
+          writeLocalMnemonic(created.mnemonic)
+          console.warn('[payment] NYX_SETTLEMENT_MNEMONIC is not set. Created local settlement mnemonic in .data/settlement_mnemonic.txt')
         }
       }
 
@@ -107,13 +143,35 @@ export async function confirmDepositAndSendPrivately(params: {
   amount: bigint
   recipientZkAddress: string
   temporaryAccountIndex: number
+  depositTxHash?: string
 }) {
   const unlink = await getSettlementUnlink()
+  // In-memory storage may lose derived accounts across process restarts.
+  // Recreate the temporary account deterministically if it is missing.
+  const existing = await unlink.accounts.get(params.temporaryAccountIndex)
+  if (!existing) {
+    await unlink.accounts.create(params.temporaryAccountIndex)
+  }
   await unlink.accounts.setActive(params.temporaryAccountIndex)
 
-  await waitForRelaySuccess(unlink, params.depositRelayId)
-  await unlink.confirmDeposit(params.depositRelayId)
+  try {
+    await waitForRelaySuccess(unlink, params.depositRelayId)
+    await unlink.confirmDeposit(params.depositRelayId)
+  } catch (err) {
+    if (!isRelayNotFoundError(err)) throw err
+    // Fallback for environments where relay status is not discoverable:
+    // frontend already waited for on-chain tx receipt, so force a chain resync.
+    await unlink.sync({ forceFullResync: true })
+  }
   await unlink.accounts.setActive(params.temporaryAccountIndex)
+
+  // Ensure deposited notes are visible before planning the private send.
+  for (let i = 0; i < 5; i += 1) {
+    const bal = await unlink.getBalance(params.token)
+    if (bal >= params.amount) break
+    await unlink.sync({ forceFullResync: i === 0 })
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+  }
 
   const sendResult = await unlink.send({
     transfers: [{

@@ -158,6 +158,7 @@ export async function confirmInvoicePayment(
     amount,
     recipientZkAddress: invoice.issuerAddress,
     temporaryAccountIndex: lock.temporaryAccountIndex,
+    depositTxHash: payload.depositTxHash,
   })
 
   const paidAt = nowIso()
