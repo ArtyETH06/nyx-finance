@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create vite@latest . -- --template react-ts --yes 2>&1)",
+      "Bash(npm create vite@latest . -- --template react-ts 2>&1 || true)",
+      "Bash(npm install 2>&1)",
+      "Bash(npx tsc --noEmit -p tsconfig.app.json 2>&1)",
+      "Bash(npx vite build 2>&1)"
+    ]
+  }
+}

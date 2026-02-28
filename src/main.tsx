@@ -1,0 +1,13 @@
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import { UnlinkProvider } from '@unlink-xyz/react'
+import './index.css'
+import App from './App'
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <UnlinkProvider chain="monad-testnet">
+      <App />
+    </UnlinkProvider>
+  </StrictMode>,
+)
