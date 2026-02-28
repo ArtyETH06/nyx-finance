@@ -31,8 +31,11 @@ const empty: FormState = {
   payerFirstName:  'Alex',
   payerLastName:   'Rivera',
   payerCompany:    'NYX Labs',
-  lineItems:       [{ title: 'Smart Contract Development', description: 'Development of ERC-20 token contract and deployment on Monad testnet.', amount: '2500' }],
-  tokenSymbol:     'USDCm',
+  lineItems:       [
+    { title: 'Smart Contract Development', description: 'Development of ERC-20 token contract and deployment on Monad testnet.', amount: '3.14' },
+    { title: 'Integration & QA', description: 'Wallet integration, payment flow checks, and final validation on testnet.', amount: '4.2' },
+  ],
+  tokenSymbol:     'MON',
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
