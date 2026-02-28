@@ -18,10 +18,9 @@ export default function Header() {
         </Link>
       </div>
 
-      <nav className="justify-self-center flex items-center gap-50">
+      <nav className="justify-self-center flex items-center gap-3">
         {[
           { to: '/invoices',      label: 'Invoices'      },
-          { to: '/organization',  label: 'Organization'  },
         ].map(({ to, label }) => (
           <NavLink
             key={to}
@@ -29,7 +28,6 @@ export default function Header() {
             className={({ isActive }) =>
               [
                 'relative px-3 py-1.5 text-sm transition-colors duration-150',
-                to === '/organization' ? 'ml-10' : '',
                 'after:absolute after:left-2 after:right-2 after:-bottom-1 after:h-0.5 after:rounded-full after:transition-opacity',
                 isActive
                   ? 'text-nyx-text after:bg-nyx-accent after:opacity-100'

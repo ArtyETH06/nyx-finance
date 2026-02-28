@@ -1,5 +1,11 @@
 import { Router, Request, Response } from 'express'
 import { db, toPublicInvoice, type InvoiceDoc, type InvoiceStatus } from '../db.js'
+import {
+  PaymentFlowError,
+  confirmInvoicePayment,
+  startInvoicePayment,
+  storeInvoiceReceipt,
+} from '../services/invoicePayment.js'
 
 export const contractsRouter = Router()
 
@@ -42,6 +48,16 @@ function setNoStore(res: Response) {
   res.setHeader('Expires', '0')
 }
 
+function paymentError(res: Response, err: unknown, scope: string) {
+  if (err instanceof PaymentFlowError) {
+    res.status(err.status).json({ error: err.message })
+    return
+  }
+  console.error(scope, err)
+  const message = err instanceof Error ? err.message : 'Payment flow failed'
+  res.status(500).json({ error: message })
+}
+
 // POST /api/contracts — create invoice
 contractsRouter.post('/contracts', async (req: Request, res: Response) => {
   try {
@@ -66,6 +82,7 @@ contractsRouter.post('/contracts', async (req: Request, res: Response) => {
     } = req.body
 
     const parsedLineItems = parseLineItems(lineItems)
+    const resolvedPayerAddress = typeof payerAddress === 'string' ? payerAddress.trim() : ''
     const parsedAmount = parsedLineItems.length > 0
       ? parsedLineItems.reduce((acc, item) => acc + item.amount, 0)
       : parseAmount(amount)
@@ -78,7 +95,6 @@ contractsRouter.post('/contracts', async (req: Request, res: Response) => {
     if (
       !invoiceId || typeof invoiceId !== 'string' ||
       !issuerAddress || typeof issuerAddress !== 'string' ||
-      !payerAddress || typeof payerAddress !== 'string' ||
       !resolvedTitle ||
       !resolvedDescription ||
       parsedAmount == null || parsedAmount <= 0 ||
@@ -93,10 +109,10 @@ contractsRouter.post('/contracts', async (req: Request, res: Response) => {
     }
 
     const now = new Date().toISOString()
-    const doc: InvoiceDoc = {
+      const doc: InvoiceDoc = {
       invoiceId,
       issuerAddress: normalizeAddress(issuerAddress),
-      payerAddress: normalizeAddress(payerAddress),
+      payerAddress: normalizeAddress(resolvedPayerAddress),
       issuerInfo: issuerInfo && typeof issuerInfo === 'object' ? issuerInfo : undefined,
       payerInfo: payerInfo && typeof payerInfo === 'object' ? payerInfo : undefined,
       lineItems: parsedLineItems.length > 0 ? parsedLineItems : undefined,
@@ -154,6 +170,48 @@ contractsRouter.get('/contracts/:id', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('[GET /api/contracts/:id]', err)
     res.status(500).json({ error: 'Failed to fetch invoice' })
+  }
+})
+
+// POST /api/contracts/:id/pay/start — lock invoice and prepare deposit calldata
+contractsRouter.post('/contracts/:id/pay/start', async (req: Request, res: Response) => {
+  try {
+    setNoStore(res)
+    const payerAddress = typeof req.body?.payerAddress === 'string' ? req.body.payerAddress.trim() : ''
+    const data = await startInvoicePayment(req.params.id, payerAddress)
+    res.json({ ok: true, ...data })
+  } catch (err) {
+    paymentError(res, err, '[POST /api/contracts/:id/pay/start]')
+  }
+})
+
+// POST /api/contracts/:id/pay/confirm — confirm relay + private settlement, mark invoice paid
+contractsRouter.post('/contracts/:id/pay/confirm', async (req: Request, res: Response) => {
+  try {
+    setNoStore(res)
+    const data = await confirmInvoicePayment(req.params.id, {
+      lockId: String(req.body?.lockId ?? ''),
+      payerAddress: String(req.body?.payerAddress ?? ''),
+      depositTxHash: typeof req.body?.depositTxHash === 'string' ? req.body.depositTxHash : undefined,
+    })
+    res.json({ ok: true, ...data })
+  } catch (err) {
+    paymentError(res, err, '[POST /api/contracts/:id/pay/confirm]')
+  }
+})
+
+// POST /api/contracts/:id/pay/receipt — store receipt hash and metadata
+contractsRouter.post('/contracts/:id/pay/receipt', async (req: Request, res: Response) => {
+  try {
+    setNoStore(res)
+    const data = await storeInvoiceReceipt(req.params.id, {
+      receiptHash: String(req.body?.receiptHash ?? ''),
+      txHash: String(req.body?.txHash ?? ''),
+      payerAddress: String(req.body?.payerAddress ?? ''),
+    })
+    res.status(201).json(data)
+  } catch (err) {
+    paymentError(res, err, '[POST /api/contracts/:id/pay/receipt]')
   }
 })
 

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { useUnlink } from '@unlink-xyz/react'
 import { Loader2 } from 'lucide-react'
 import Header from './components/Header'
@@ -7,17 +7,13 @@ import Footer from './components/Footer'
 import WalletPopup from './components/WalletPopup'
 import Toast from './components/Toast'
 import InvoiceLayout from './components/InvoiceLayout'
-import OrgLayout from './components/OrgLayout'
 import Home from './pages/Home'
 import Profile from './pages/Profile'
 import Wallet from './pages/Wallet'
 import InvoiceDashboard from './pages/invoices/InvoiceDashboard'
 import CreateInvoice from './pages/invoices/CreateInvoice'
 import InvoiceDetail from './pages/invoices/InvoiceDetail'
-import OrgDashboard from './pages/organization/OrgDashboard'
-import Teams from './pages/organization/Teams'
-import OrgDetail from './pages/organization/OrgDetail'
-import MemberDetail from './pages/organization/MemberDetail'
+import PayInvoice from './pages/pay/PayInvoice'
 
 function FullscreenLoader({ label }: { label: string }) {
   return (
@@ -32,12 +28,29 @@ function FullscreenLoader({ label }: { label: string }) {
 
 function AppInner() {
   const { ready, walletExists, activeAccount, createAccount } = useUnlink()
+  const location = useLocation()
+  const isPublicPayRoute = /^\/pay\/[^/]+$/.test(location.pathname)
 
   useEffect(() => {
     if (ready && walletExists && !activeAccount) {
       createAccount()
     }
   }, [ready, walletExists, activeAccount, createAccount])
+
+  if (isPublicPayRoute) {
+    return (
+      <div className="min-h-screen bg-nyx-bg flex flex-col">
+        <Header />
+        <div className="flex-1 min-h-0">
+          <Routes>
+            <Route path="/pay/:id" element={<PayInvoice />} />
+          </Routes>
+        </div>
+        <Footer />
+        <Toast />
+      </div>
+    )
+  }
 
   if (!ready) {
     return <FullscreenLoader label="Initializing..." />
@@ -57,18 +70,13 @@ function AppInner() {
       <div className="flex-1 min-h-0">
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/pay/:id" element={<PayInvoice />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/wallet" element={<Wallet />} />
           <Route path="/invoices" element={<InvoiceLayout />}>
             <Route index element={<InvoiceDashboard />} />
             <Route path="create" element={<CreateInvoice />} />
             <Route path=":id" element={<InvoiceDetail />} />
-          </Route>
-          <Route path="/organization" element={<OrgLayout />}>
-            <Route index element={<OrgDashboard />} />
-            <Route path="teams" element={<Teams />} />
-            <Route path="teams/:id" element={<OrgDetail />} />
-            <Route path="teams/:id/members/:memberAddress" element={<MemberDetail />} />
           </Route>
         </Routes>
       </div>

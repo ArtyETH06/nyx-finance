@@ -66,7 +66,22 @@ export interface InvoiceDoc {
     relayId?: string
     txHash?: string
     paidAt?: string
+    payerAddress?: string
+    depositRelayId?: string
+    depositTxHash?: string
   }
+  paymentLock?: {
+    lockId: string
+    payerAddress: string
+    createdAt: string
+    expiresAt: string
+    depositRelayId?: string
+    depositTo?: string
+    depositCalldata?: string
+    depositValue?: string
+    temporaryZkAddress?: string
+    temporaryAccountIndex?: number
+  } | null
 }
 
 export type PaycheckStatus = 'pending' | 'confirmed' | 'failed'
@@ -104,12 +119,25 @@ export interface ScheduledPaymentDoc {
   createdAt: string
 }
 
+export interface ReceiptDoc {
+  _id?: ObjectId | string
+  invoiceId: string
+  txHash: string
+  amount: number
+  token: string
+  payerAddress: string
+  issuerZkAddress: string
+  receiptHash: string
+  createdAt: string
+}
+
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017'
 const MONGODB_DB = process.env.MONGODB_DB || 'nyx_finance'
 const COLLECTION = 'contracts'
 const ORG_COLLECTION = 'organizations'
 const PAYCHECK_COLLECTION = 'paychecks'
 const SCHEDULED_COLLECTION = 'scheduled_payments'
+const RECEIPT_COLLECTION = 'receipts'
 const VERCEL_ENV = process.env.VERCEL_ENV // 'production' | 'preview' | 'development' | undefined
 // If MONGODB_URI is explicitly provided, always require it — never silently fall back to file store
 const HAS_REMOTE_URI = !!process.env.MONGODB_URI
@@ -123,6 +151,7 @@ const DATA_FILE = path.join(DATA_DIR, 'contracts.json')
 const ORG_DATA_FILE = path.join(DATA_DIR, 'organizations.json')
 const PAYCHECK_DATA_FILE = path.join(DATA_DIR, 'paychecks.json')
 const SCHEDULED_DATA_FILE = path.join(DATA_DIR, 'scheduled_payments.json')
+const RECEIPT_DATA_FILE = path.join(DATA_DIR, 'receipts.json')
 
 // Store on globalThis so the connection survives module re-evaluations
 // (vercel dev re-imports modules on each request; globalThis persists within the process)
@@ -197,6 +226,19 @@ function readAllScheduledFile(): ScheduledPaymentDoc[] {
 function writeAllScheduledFile(data: ScheduledPaymentDoc[]) {
   ensureScheduledFile()
   fs.writeFileSync(SCHEDULED_DATA_FILE, JSON.stringify(data, null, 2), 'utf-8')
+}
+
+function ensureReceiptFile() {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
+  if (!fs.existsSync(RECEIPT_DATA_FILE)) fs.writeFileSync(RECEIPT_DATA_FILE, '[]', 'utf-8')
+}
+function readAllReceiptFile(): ReceiptDoc[] {
+  ensureReceiptFile()
+  try { return JSON.parse(fs.readFileSync(RECEIPT_DATA_FILE, 'utf-8')) as ReceiptDoc[] } catch { return [] }
+}
+function writeAllReceiptFile(data: ReceiptDoc[]) {
+  ensureReceiptFile()
+  fs.writeFileSync(RECEIPT_DATA_FILE, JSON.stringify(data, null, 2), 'utf-8')
 }
 
 function getClient(): Promise<MongoClient | null> {
@@ -498,5 +540,45 @@ export const scheduledPaymentDb = {
     return readAllScheduledFile()
       .filter((d) => d.organizationId === organizationId && normalizeAddress(d.memberAddress) === addr)
       .sort((a, b) => new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime())
+  },
+}
+
+async function getReceiptCollection() {
+  const mongo = await getClient()
+  return mongo ? mongo.db(MONGODB_DB).collection<ReceiptDoc>(RECEIPT_COLLECTION) : null
+}
+
+export function toPublicReceipt(doc: ReceiptDoc) {
+  return { ...doc, _id: doc._id?.toString() }
+}
+
+export const receiptDb = {
+  async getByInvoiceId(invoiceId: string): Promise<ReceiptDoc | null> {
+    const col = await getReceiptCollection()
+    if (col) return col.findOne({ invoiceId })
+    const data = readAllReceiptFile()
+    return data.find((d) => d.invoiceId === invoiceId) ?? null
+  },
+
+  async upsertByInvoiceId(invoiceId: string, doc: ReceiptDoc): Promise<string> {
+    const col = await getReceiptCollection()
+    if (col) {
+      await col.updateOne({ invoiceId }, { $set: doc }, { upsert: true })
+      const saved = await col.findOne({ invoiceId })
+      return saved?._id?.toString() ?? invoiceId
+    }
+
+    const data = readAllReceiptFile()
+    const idx = data.findIndex((d) => d.invoiceId === invoiceId)
+    if (idx === -1) {
+      const id = `${Date.now()}-${Math.floor(Math.random() * 10000)}`
+      data.push({ ...doc, _id: id })
+      writeAllReceiptFile(data)
+      return id
+    }
+
+    data[idx] = { ...data[idx], ...doc }
+    writeAllReceiptFile(data)
+    return String(data[idx]._id ?? invoiceId)
   },
 }

@@ -20,7 +20,6 @@ interface FormState {
   payerFirstName:  string
   payerLastName:   string
   payerCompany:    string
-  payerAddress:    string
   lineItems:       LineItemForm[]
   tokenSymbol:     InvoiceTokenSymbol
 }
@@ -32,7 +31,6 @@ const empty: FormState = {
   payerFirstName:  'Alex',
   payerLastName:   'Rivera',
   payerCompany:    'NYX Labs',
-  payerAddress:    'unlink1qyv8z6lurqx2437m0udmdu5c643yczyfj3gxlsf28r4l4d5l0e6amz53jwtfr9y2jxag4yzmq5tgfnuvst9syrfma453s2hkmgzseggvzl55d9ytfkwzjh0wx8m',
   lineItems:       [{ title: 'Smart Contract Development', description: 'Development of ERC-20 token contract and deployment on Monad testnet.', amount: '2500' }],
   tokenSymbol:     'USDCm',
 }
@@ -120,10 +118,6 @@ export default function CreateInvoice() {
     e.preventDefault()
     setFormError(null)
 
-    if (!form.payerAddress.trim()) {
-      setFormError('Payer ZK address is required.')
-      return
-    }
     const parsedLineItems = form.lineItems
       .map((item) => ({
         title: item.title.trim(),
@@ -161,7 +155,7 @@ export default function CreateInvoice() {
           lastName: form.issuerLastName || undefined,
           company: form.issuerCompany || undefined,
         },
-        payerAddress: form.payerAddress.trim(),
+        payerAddress: 'Assigned at payment time',
         payerInfo: {
           firstName: form.payerFirstName || undefined,
           lastName: form.payerLastName || undefined,
@@ -189,7 +183,7 @@ export default function CreateInvoice() {
             lastName: form.issuerLastName || undefined,
             company: form.issuerCompany || undefined,
           },
-          payerAddress: form.payerAddress.trim(),
+          payerAddress: '',
           payerFirstName: form.payerFirstName || undefined,
           payerLastName: form.payerLastName || undefined,
           payerCompany: form.payerCompany || undefined,
@@ -269,17 +263,6 @@ export default function CreateInvoice() {
           <Field label="Company">
             <input className={inputCls} value={form.payerCompany} onChange={set('payerCompany')} placeholder="Client Corp" />
           </Field>
-          <div className="mt-3">
-            <Field label="ZK Address" required>
-              <input
-                className={inputCls}
-                value={form.payerAddress}
-                onChange={set('payerAddress')}
-                placeholder="unlink1..."
-                required
-              />
-            </Field>
-          </div>
         </div>
 
         {/* Invoice Details */}

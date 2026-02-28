@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useUnlink } from '@unlink-xyz/react'
 import { useNavigate } from 'react-router-dom'
-import { FilePlus, ArrowUpRight, ArrowDownLeft, RefreshCw, Loader2 } from 'lucide-react'
+import { FilePlus, ArrowUpRight, ArrowDownLeft, RefreshCw, Loader2, Link2 } from 'lucide-react'
 import type { Invoice } from '../../lib/invoices'
 import {
   applyInvoiceLocalOverride,
@@ -38,6 +38,17 @@ function shortHash(hash: string) {
   return `${hash.slice(0, 10)}…${hash.slice(-8)}`
 }
 
+function paymentPath(inv: Invoice): string {
+  const payId = inv.invoiceId || inv._id
+  return `/pay/${encodeURIComponent(payId)}`
+}
+
+function paymentUrl(inv: Invoice): string {
+  const path = paymentPath(inv)
+  if (typeof window === 'undefined') return path
+  return `${window.location.origin}${path}`
+}
+
 function counterpartyLabel(inv: Invoice, address: string) {
   if (inv.issuerAddress === address) {
     return fmtPartyName(inv.payerInfo) !== '—'
@@ -55,6 +66,7 @@ export default function InvoiceDashboard() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
 
   const address = activeAccount?.address ?? ''
 
@@ -174,6 +186,34 @@ export default function InvoiceDashboard() {
                   <p className="text-nyx-muted text-xs mt-0.5 truncate">
                     {isSent ? 'To: ' : 'From: '}{counterpartyLabel(inv, address)}
                   </p>
+                  {isSent && (
+                    <div className="mt-1.5 flex items-center gap-2 min-w-0">
+                      <a
+                        href={paymentPath(inv)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-[11px] text-nyx-accent underline truncate"
+                      >
+                        {paymentUrl(inv)}
+                      </a>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const value = paymentUrl(inv)
+                          navigator.clipboard.writeText(value).then(() => {
+                            const key = inv._id || inv.invoiceId
+                            setCopiedId(key)
+                            window.setTimeout(() => setCopiedId((prev) => (prev === key ? null : prev)), 1500)
+                          }).catch(() => {})
+                        }}
+                        className="text-[11px] text-nyx-muted hover:text-nyx-text inline-flex items-center gap-1"
+                        aria-label="Copy pay link"
+                      >
+                        <Link2 size={12} />
+                        {copiedId === (inv._id || inv.invoiceId) ? 'Copied' : 'Copy'}
+                      </button>
+                    </div>
+                  )}
                   {inv.status === 'paid' && (inv.payment?.txHash || inv.payment?.relayId) && (
                     <p className="text-nyx-success text-[11px] mt-1 truncate">
                       Proof:{' '}

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { parseAmount, useUnlink, useUnlinkHistory } from '@unlink-xyz/react'
-import { ArrowLeft, Check, Download, Loader2, X } from 'lucide-react'
+import { ArrowLeft, Check, Download, Link2, Loader2, X } from 'lucide-react'
 import { toast } from '../../lib/toast'
 import type { Invoice } from '../../lib/invoices'
 import {
@@ -20,6 +20,16 @@ function fmtMoney(amount: number, symbol: string) {
   return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${symbol}`
 }
 
+function payPath(invoice: Invoice): string {
+  return `/pay/${encodeURIComponent(invoice.invoiceId || invoice._id)}`
+}
+
+function payUrl(invoice: Invoice): string {
+  const path = payPath(invoice)
+  if (typeof window === 'undefined') return path
+  return `${window.location.origin}${path}`
+}
+
 export default function InvoiceDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -36,6 +46,7 @@ export default function InvoiceDetail() {
   const [txStatusText, setTxStatusText] = useState<string | null>(null)
   const [copiedIssuer, setCopiedIssuer] = useState(false)
   const [copiedPayer, setCopiedPayer] = useState(false)
+  const [copiedPayLink, setCopiedPayLink] = useState(false)
 
   function copyAddress(addr: string, which: 'issuer' | 'payer') {
     navigator.clipboard.writeText(addr).then(() => {
@@ -54,6 +65,7 @@ export default function InvoiceDetail() {
 
   const address = activeAccount?.address ?? ''
   const isPayer = !!invoice && invoice.payerAddress === address
+  const isIssuer = !!invoice && invoice.issuerAddress === address
 
   // Match the ZK history entry and notes by the on-chain txHash
   const paymentTxHash = invoice?.payment?.txHash
@@ -421,6 +433,34 @@ export default function InvoiceDetail() {
             <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Token</p>
             <p className="text-nyx-text text-sm">{invoice.tokenSymbol}</p>
           </div>
+          {isIssuer && (
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Pay Link</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <a
+                  href={payPath(invoice)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-nyx-accent text-xs underline break-all"
+                >
+                  {payUrl(invoice)}
+                </a>
+                <button
+                  type="button"
+                  className="btn-ghost text-nyx-muted text-xs hover:text-nyx-text inline-flex items-center gap-1"
+                  onClick={() => {
+                    navigator.clipboard.writeText(payUrl(invoice)).then(() => {
+                      setCopiedPayLink(true)
+                      setTimeout(() => setCopiedPayLink(false), 1500)
+                    }).catch(() => {})
+                  }}
+                >
+                  <Link2 size={12} />
+                  {copiedPayLink ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+            </div>
+          )}
           {invoice.status === 'paid' && (invoice.payment?.txHash || invoice.payment?.relayId) && (
             <div className="bg-[rgba(34,197,94,0.05)] border border-[rgba(34,197,94,0.15)] rounded-lg p-4 space-y-3">
               <p className="text-[10px] uppercase tracking-widest text-nyx-success font-semibold">Payment Proof</p>

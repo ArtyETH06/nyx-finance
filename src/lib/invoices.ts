@@ -38,6 +38,9 @@ export interface Invoice {
     relayId?: string
     txHash?: string
     paidAt?: string
+    payerAddress?: string
+    depositRelayId?: string
+    depositTxHash?: string
   }
 }
 

@@ -88,6 +88,7 @@ export default async function handler(req: any, res: any) {
       } = req.body ?? {}
 
       const parsedLineItems = parseLineItems(lineItems)
+      const resolvedPayerAddress = typeof payerAddress === 'string' ? payerAddress.trim() : ''
       const parsedAmount = parsedLineItems.length > 0
         ? parsedLineItems.reduce((acc, item) => acc + item.amount, 0)
         : parseAmount(amount)
@@ -100,7 +101,6 @@ export default async function handler(req: any, res: any) {
       if (
         !invoiceId || typeof invoiceId !== 'string' ||
         !issuerAddress || typeof issuerAddress !== 'string' ||
-        !payerAddress || typeof payerAddress !== 'string' ||
         !resolvedTitle ||
         !resolvedDescription ||
         parsedAmount == null || parsedAmount <= 0 ||
@@ -129,7 +129,7 @@ export default async function handler(req: any, res: any) {
       const doc: InvoiceDoc = {
         invoiceId,
         issuerAddress: normalizeAddress(issuerAddress),
-        payerAddress: normalizeAddress(payerAddress),
+        payerAddress: normalizeAddress(resolvedPayerAddress),
         issuerInfo: mergedIssuerInfo,
         payerInfo: mergedPayerInfo,
         lineItems: parsedLineItems.length > 0 ? parsedLineItems : undefined,
