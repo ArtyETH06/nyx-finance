@@ -1,16 +1,27 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUnlink } from '@unlink-xyz/react'
-import { ArrowLeft, Copy, Trash2, Eye, EyeOff } from 'lucide-react'
+import { ArrowLeft, Copy, Trash2, Eye, EyeOff, KeyRound, Upload, ShieldAlert } from 'lucide-react'
 
 export default function Profile() {
-  const { activeAccount, exportMnemonic, clearWallet } = useUnlink()
+  const { activeAccount, exportMnemonic, clearWallet, importWallet, busy } = useUnlink()
   const navigate = useNavigate()
+
+  // Address copy
   const [copied, setCopied] = useState(false)
+
+  // Mnemonic display
   const [mnemonic, setMnemonic] = useState<string | null>(null)
   const [showMnemonic, setShowMnemonic] = useState(false)
+  const [mnemonicCopied, setMnemonicCopied] = useState(false)
+
+  // Import wallet
+  const [importPhrase, setImportPhrase] = useState('')
+  const [importStep, setImportStep] = useState<'input' | 'confirm'>('input')
+  const [importError, setImportError] = useState<string | null>(null)
 
   const address = activeAccount?.address ?? ''
+  const mnemonicWords = mnemonic ? mnemonic.split(' ') : []
 
   async function handleCopy() {
     await navigator.clipboard.writeText(address)
@@ -22,6 +33,24 @@ export default function Profile() {
     const phrase = await exportMnemonic()
     setMnemonic(phrase)
     setShowMnemonic(true)
+  }
+
+  async function handleCopyMnemonic() {
+    if (!mnemonic) return
+    await navigator.clipboard.writeText(mnemonic)
+    setMnemonicCopied(true)
+    setTimeout(() => setMnemonicCopied(false), 1500)
+  }
+
+  async function handleImportWallet() {
+    setImportError(null)
+    try {
+      await importWallet(importPhrase.trim())
+      setImportPhrase('')
+      setImportStep('input')
+    } catch (e) {
+      setImportError(e instanceof Error ? e.message : 'Failed to import wallet')
+    }
   }
 
   async function handleClearWallet() {
@@ -46,6 +75,7 @@ export default function Profile() {
       <h1 className="text-2xl font-semibold text-nyx-text mb-8 tracking-tight">Profile</h1>
 
       <div className="space-y-4">
+
         {/* Address */}
         <div className="nyx-card p-6">
           <p className="text-nyx-muted text-xs uppercase tracking-widest mb-3">Private Address</p>
@@ -56,34 +86,121 @@ export default function Profile() {
           </button>
         </div>
 
-        {/* Export Mnemonic */}
+        {/* Recovery Phrase */}
         <div className="nyx-card p-6">
-          <p className="text-nyx-muted text-xs uppercase tracking-widest mb-1">Recovery Phrase</p>
-          <p className="text-nyx-muted text-sm mb-4">
-            Export your 12-word recovery phrase. Keep it private and secure.
-          </p>
-
           {showMnemonic && mnemonic ? (
-            <div className="mb-4">
-              <div className="bg-nyx-bg border border-[rgba(255,255,255,0.06)] rounded-xl p-4 mb-2">
-                <p className="font-mono text-nyx-text text-sm leading-relaxed break-words select-all">
-                  {mnemonic}
-                </p>
+            <>
+              <div className="flex items-center gap-2 mb-1">
+                <KeyRound size={13} className="text-nyx-accent" strokeWidth={1.5} />
+                <p className="text-xs font-semibold tracking-widest text-nyx-muted uppercase">Recovery Phrase</p>
               </div>
-              <p className="text-nyx-muted text-xs mb-3">Click phrase to select all. Never share this.</p>
-              <button
-                onClick={() => { setShowMnemonic(false); setMnemonic(null) }}
-                className="btn-ghost text-nyx-muted text-xs hover:text-nyx-text flex items-center gap-1.5"
-              >
-                <EyeOff size={12} strokeWidth={1.5} />
-                Hide
-              </button>
-            </div>
+              <p className="text-nyx-muted text-xs leading-relaxed mb-5">
+                Your recovery phrase is the only way to restore your wallet. Never share it with anyone.
+              </p>
+
+              <div className="flex gap-2 mb-5">
+                <button
+                  onClick={() => { setShowMnemonic(false); setMnemonic(null) }}
+                  className="btn-secondary"
+                >
+                  <EyeOff size={13} strokeWidth={1.5} />
+                  Hide
+                </button>
+                <button onClick={handleCopyMnemonic} className="btn-secondary">
+                  <Copy size={13} strokeWidth={1.5} />
+                  {mnemonicCopied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+
+              {/* Word grid */}
+              <div className="bg-nyx-bg border border-[rgba(255,255,255,0.06)] rounded-xl p-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {mnemonicWords.map((word, i) => (
+                    <div
+                      key={i}
+                      className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-lg px-3 py-2.5 flex items-center gap-2"
+                    >
+                      <span className="text-nyx-muted font-mono text-[10px] w-4 flex-shrink-0 tabular-nums">
+                        {i + 1}
+                      </span>
+                      <span className="font-mono text-nyx-text text-xs tracking-wide">{word}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
           ) : (
-            <button onClick={handleExportMnemonic} className="btn-secondary">
-              <Eye size={13} strokeWidth={1.5} />
-              Export Mnemonic
-            </button>
+            <>
+              <p className="text-nyx-muted text-xs uppercase tracking-widest mb-1">Recovery Phrase</p>
+              <p className="text-nyx-muted text-sm mb-4">
+                Export your recovery phrase. Keep it private and secure.
+              </p>
+              <button onClick={handleExportMnemonic} disabled={busy} className="btn-secondary">
+                <Eye size={13} strokeWidth={1.5} />
+                Export Mnemonic
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Import Wallet */}
+        <div className="nyx-card p-6">
+          <p className="text-nyx-muted text-xs uppercase tracking-widest mb-1">Import Wallet</p>
+
+          {importStep === 'input' ? (
+            <>
+              <p className="text-nyx-muted text-sm mb-4">
+                Restore a wallet from an existing recovery phrase.
+              </p>
+              <textarea
+                value={importPhrase}
+                onChange={(e) => setImportPhrase(e.target.value)}
+                placeholder="Enter your recovery phrase..."
+                rows={3}
+                className="w-full bg-nyx-bg border border-[rgba(255,255,255,0.06)] rounded-xl px-4 py-3 text-nyx-text text-sm font-mono placeholder:text-nyx-muted/40 resize-none focus:outline-none focus:border-nyx-accent transition-colors duration-150 mb-4"
+              />
+              <button
+                onClick={() => setImportStep('confirm')}
+                disabled={!importPhrase.trim()}
+                className="btn-secondary disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Upload size={13} strokeWidth={1.5} />
+                Import Wallet
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="bg-nyx-bg border border-nyx-danger/20 rounded-xl p-4 mb-5 flex gap-3">
+                <ShieldAlert size={15} className="text-nyx-danger flex-shrink-0 mt-0.5" strokeWidth={1.5} />
+                <div>
+                  <p className="text-nyx-danger font-medium text-sm mb-1">Replace current wallet?</p>
+                  <p className="text-nyx-muted text-sm leading-relaxed">
+                    This will permanently replace your current wallet and delete your existing private keys from this device. Make sure your current recovery phrase is backed up before continuing.
+                  </p>
+                </div>
+              </div>
+
+              {importError && (
+                <p className="text-nyx-danger text-sm mb-4">{importError}</p>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setImportStep('input'); setImportError(null) }}
+                  className="btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleImportWallet}
+                  disabled={busy}
+                  className="btn-danger disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Upload size={13} strokeWidth={1.5} />
+                  {busy ? 'Importing...' : 'Confirm Import'}
+                </button>
+              </div>
+            </>
           )}
         </div>
 
@@ -98,6 +215,7 @@ export default function Profile() {
             Clear Wallet
           </button>
         </div>
+
       </div>
     </main>
   )

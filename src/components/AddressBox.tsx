@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useUnlink } from '@unlink-xyz/react'
 import { useNavigate } from 'react-router-dom'
-import { Wallet, User, KeyRound, Trash2 } from 'lucide-react'
+import { Wallet, User } from 'lucide-react'
 
 function shortenUnlinkAddress(address: string): string {
   if (address.length <= 16) return address
@@ -9,7 +9,7 @@ function shortenUnlinkAddress(address: string): string {
 }
 
 export default function AddressBox() {
-  const { activeAccount, exportMnemonic, clearWallet } = useUnlink()
+  const { activeAccount } = useUnlink()
   const navigate = useNavigate()
   const [copied, setCopied] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
@@ -31,22 +31,6 @@ export default function AddressBox() {
     await navigator.clipboard.writeText(address)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
-  }
-
-  async function handleExportMnemonic() {
-    setDropdownOpen(false)
-    const mnemonic = await exportMnemonic()
-    alert(`Your recovery phrase:\n\n${mnemonic}\n\nStore this securely. Never share it.`)
-  }
-
-  async function handleClearWallet() {
-    setDropdownOpen(false)
-    const confirmed = confirm(
-      'Are you sure you want to clear your wallet?\n\nThis will permanently delete your private keys from this device. Make sure you have backed up your recovery phrase.'
-    )
-    if (confirmed) {
-      await clearWallet()
-    }
   }
 
   if (!activeAccount) return null
@@ -80,7 +64,7 @@ export default function AddressBox() {
 
       {dropdownOpen && (
         <div
-          className="dropdown-animate absolute right-0 top-full mt-2 w-52 bg-nyx-secondary border border-[rgba(255,255,255,0.08)] rounded-xl shadow-2xl overflow-hidden z-50"
+          className="dropdown-animate absolute right-0 top-full mt-2 w-44 bg-nyx-secondary border border-[rgba(255,255,255,0.08)] rounded-xl shadow-2xl overflow-hidden z-50"
           onMouseLeave={() => setDropdownOpen(false)}
         >
           <button
@@ -89,21 +73,6 @@ export default function AddressBox() {
           >
             <User size={14} strokeWidth={1.5} />
             Profile
-          </button>
-          <button
-            onClick={handleExportMnemonic}
-            className="w-full text-left px-4 py-3 text-sm text-nyx-muted hover:text-nyx-text hover:bg-[rgba(255,255,255,0.04)] transition-all duration-150 flex items-center gap-3"
-          >
-            <KeyRound size={14} strokeWidth={1.5} />
-            Export Mnemonic
-          </button>
-          <div className="border-t border-[rgba(255,255,255,0.06)]" />
-          <button
-            onClick={handleClearWallet}
-            className="w-full text-left px-4 py-3 text-sm text-nyx-danger hover:bg-[rgba(239,68,68,0.06)] transition-all duration-150 flex items-center gap-3"
-          >
-            <Trash2 size={14} strokeWidth={1.5} />
-            Clear Wallet
           </button>
         </div>
       )}
