@@ -6,10 +6,17 @@ import type { Invoice } from '../../lib/invoices'
 import { fmtPartyName } from '../../lib/invoices'
 
 const STATUS_STYLES: Record<Invoice['status'], string> = {
-  sent:  'bg-[rgba(108,92,231,0.12)] text-nyx-accent',
-  accepted: 'bg-[rgba(59,130,246,0.12)] text-[#93c5fd]',
+  sent: 'bg-[rgba(234,179,8,0.16)] text-yellow-300',
+  accepted: 'bg-[rgba(234,179,8,0.16)] text-yellow-300',
   rejected: 'bg-[rgba(239,68,68,0.14)] text-nyx-danger',
-  paid:  'bg-[rgba(34,197,94,0.12)]  text-nyx-success',
+  paid: 'bg-[rgba(34,197,94,0.12)] text-nyx-success',
+}
+
+const STATUS_LABELS: Record<Invoice['status'], string> = {
+  sent: 'Pending',
+  accepted: 'Pending',
+  rejected: 'Rejected',
+  paid: 'Paid',
 }
 
 function formatAmount(amount: number, symbol: string) {
@@ -157,7 +164,7 @@ export default function InvoiceDashboard() {
 
                 {/* Status badge */}
                 <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-1 rounded-md flex-shrink-0 ${STATUS_STYLES[inv.status]}`}>
-                  {inv.status}
+                  {STATUS_LABELS[inv.status]}
                 </span>
 
                 {/* Amount */}

@@ -1,16 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { parseAmount, useUnlink } from '@unlink-xyz/react'
-import { ArrowLeft, Check, CircleDollarSign, Download, Loader2, X } from 'lucide-react'
+import { ArrowLeft, Check, Download, Loader2, X } from 'lucide-react'
 import { toast } from '../../lib/toast'
 import type { Invoice } from '../../lib/invoices'
 import { fmtPartyName, formatIssueDate } from '../../lib/invoices'
 import { buildInvoicePdf, downloadPdf, sha256Blob } from '../../lib/invoicePdf'
 import { USDC, USDT, NATIVE_TOKEN_ADDRESS, getTokenByAddress } from '../../lib/tokens'
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
 
 function fmtMoney(amount: number, symbol: string) {
   return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${symbol}`
@@ -64,7 +60,7 @@ function normalizeInvoice(raw: Record<string, unknown>): Invoice {
 export default function InvoiceDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { activeAccount, send, deposit, waitForConfirmation, refresh, balances } = useUnlink()
+  const { activeAccount, send, waitForConfirmation, refresh, balances } = useUnlink()
 
   const [invoice, setInvoice] = useState<Invoice | null>(null)
   const [loading, setLoading] = useState(true)
@@ -72,8 +68,7 @@ export default function InvoiceDetail() {
   const [busy, setBusy] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
   const [showReject, setShowReject] = useState(false)
-  const [showFundModal, setShowFundModal] = useState(false)
-  const [publicAddress, setPublicAddress] = useState<string | null>(null)
+  const [insufficientFunds, setInsufficientFunds] = useState(false)
   const [txStatusText, setTxStatusText] = useState<string | null>(null)
 
   const balancesRef = useRef(balances)
@@ -89,10 +84,6 @@ export default function InvoiceDetail() {
   )
   const tokenDecimals = token?.decimals ?? 18
   const tokenAddress = invoice?.tokenAddress ?? ''
-  const privateTokenBalance = useMemo(
-    () => (tokenAddress ? balances[tokenAddress] ?? 0n : 0n),
-    [balances, tokenAddress]
-  )
   const requiredAmount = useMemo(() => {
     if (!invoice) return 0n
     return parseAmount(String(invoice.amount), tokenDecimals)
@@ -142,25 +133,16 @@ export default function InvoiceDetail() {
       body: JSON.stringify(patch),
     })
     if (!res.ok) {
+      if (res.status === 404) {
+        // Compatibility fallback for older API servers without PATCH support.
+        setInvoice((prev) => (prev ? { ...prev, ...(patch as Partial<Invoice>) } : prev))
+        return
+      }
       const data = await res.json().catch(() => ({}))
       throw new Error(data.error ?? 'Failed to update invoice')
     }
     const data = await res.json()
     setInvoice(data.invoice as Invoice)
-  }
-
-  async function handleAccept() {
-    setBusy(true)
-    setTxStatusText('Waiting for API confirmation...')
-    try {
-      await patchInvoice({ status: 'accepted', rejectionReason: null })
-      toast.show('Invoice accepted.')
-    } catch (e) {
-      toast.show(e instanceof Error ? e.message : 'Accept failed', 'error')
-    } finally {
-      setBusy(false)
-      setTxStatusText(null)
-    }
   }
 
   async function handleReject() {
@@ -183,40 +165,9 @@ export default function InvoiceDetail() {
     }
   }
 
-  async function connectPublicWallet() {
-    if (!window.ethereum) {
-      toast.show('No wallet detected. Please install MetaMask.', 'error')
-      return
-    }
-    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' }) as string[]
-    setPublicAddress(accounts[0] ?? null)
-  }
-
-  async function waitForPublicTxConfirmation(txHash: string): Promise<void> {
-    if (!window.ethereum) throw new Error('No wallet provider found')
-    const maxTries = 60
-    for (let i = 0; i < maxTries; i += 1) {
-      const receipt = await window.ethereum.request({
-        method: 'eth_getTransactionReceipt',
-        params: [txHash],
-      }) as { status?: string } | null
-      if (receipt) {
-        if (receipt.status === '0x1') return
-        throw new Error('Deposit transaction failed on-chain')
-      }
-      await sleep(2000)
-    }
-    throw new Error('Timed out waiting for deposit confirmation')
-  }
-
-  async function waitForPrivateFunds(required: bigint): Promise<boolean> {
-    const maxTries = 30
-    for (let i = 0; i < maxTries; i += 1) {
-      await refresh()
-      if ((balancesRef.current[tokenAddress] ?? 0n) >= required) return true
-      await sleep(1500)
-    }
-    return false
+  async function handleAccept() {
+    // Accept in this flow means "accept and pay now".
+    await handlePay()
   }
 
   async function executePaymentFlow() {
@@ -256,67 +207,16 @@ export default function InvoiceDetail() {
 
     setBusy(true)
     try {
+      setInsufficientFunds(false)
       const localBalance = balancesRef.current[tokenAddress] ?? 0n
       if (localBalance < requiredAmount) {
-        setShowFundModal(true)
+        setInsufficientFunds(true)
+        toast.show('Insufficient private balance.', 'error')
         return
       }
       await executePaymentFlow()
     } catch (e) {
       toast.show(e instanceof Error ? e.message : 'Payment failed', 'error')
-    } finally {
-      setBusy(false)
-      setTxStatusText(null)
-    }
-  }
-
-  async function fundAndPay() {
-    if (!publicAddress || !invoice) return
-    setBusy(true)
-    try {
-      const localBalance = balancesRef.current[tokenAddress] ?? 0n
-      const missing = requiredAmount > localBalance ? requiredAmount - localBalance : 0n
-      if (missing <= 0n) {
-        setShowFundModal(false)
-        await executePaymentFlow()
-        return
-      }
-
-      setTxStatusText('Preparing deposit...')
-      const depositResult = await deposit([{ token: tokenAddress, amount: missing, depositor: publicAddress }]) as
-        | { to: string; calldata: string; value?: string | bigint }
-        | undefined
-      if (!depositResult) throw new Error('No deposit payload returned')
-      if (!window.ethereum) throw new Error('No wallet provider found')
-
-      const txParams: Record<string, string> = {
-        to: depositResult.to,
-        data: depositResult.calldata,
-        from: publicAddress,
-      }
-      if (typeof depositResult.value === 'bigint') {
-        txParams.value = `0x${depositResult.value.toString(16)}`
-      } else if (typeof depositResult.value === 'string') {
-        txParams.value = depositResult.value
-      }
-
-      setTxStatusText('Submitting deposit transaction...')
-      const depositTxHash = await window.ethereum.request({
-        method: 'eth_sendTransaction',
-        params: [txParams],
-      }) as string
-
-      setTxStatusText('Waiting for deposit confirmation...')
-      await waitForPublicTxConfirmation(depositTxHash)
-
-      setTxStatusText('Refreshing private balance...')
-      const funded = await waitForPrivateFunds(requiredAmount)
-      if (!funded) throw new Error('Deposit confirmed, but private balance sync is still pending.')
-
-      setShowFundModal(false)
-      await executePaymentFlow()
-    } catch (e) {
-      toast.show(e instanceof Error ? e.message : 'Fund & Pay failed', 'error')
     } finally {
       setBusy(false)
       setTxStatusText(null)
@@ -364,6 +264,14 @@ export default function InvoiceDetail() {
     )
   }
 
+  const statusView: Record<Invoice['status'], { label: string; cls: string }> = {
+    sent: { label: 'Pending', cls: 'bg-[rgba(234,179,8,0.16)] text-yellow-300' },
+    accepted: { label: 'Pending', cls: 'bg-[rgba(234,179,8,0.16)] text-yellow-300' },
+    rejected: { label: 'Rejected', cls: 'bg-[rgba(239,68,68,0.14)] text-nyx-danger' },
+    paid: { label: 'Paid', cls: 'bg-[rgba(34,197,94,0.12)] text-nyx-success' },
+  }
+  const currentStatus = statusView[invoice.status]
+
   return (
     <main className="px-8 py-10 max-w-4xl space-y-4">
       <button
@@ -382,8 +290,8 @@ export default function InvoiceDetail() {
             <p className="text-nyx-muted text-xs mt-1">{new Date(invoice.createdAt).toLocaleString()}</p>
           </div>
           <div className="text-right">
-            <span className="text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-md bg-[rgba(108,92,231,0.12)] text-nyx-accent">
-              {invoice.status}
+            <span className={`text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-md ${currentStatus.cls}`}>
+              {currentStatus.label}
             </span>
             <p className="text-nyx-text font-semibold mt-3">{fmtMoney(invoice.amount, invoice.tokenSymbol)}</p>
             <p className="text-nyx-muted text-xs mt-1 font-mono">{shortAddress(invoice.tokenAddress)}</p>
@@ -449,23 +357,18 @@ export default function InvoiceDetail() {
             <div className="flex flex-wrap gap-2">
               <button onClick={handleAccept} disabled={busy} className="btn-secondary">
                 <Check size={13} strokeWidth={1.5} />
-                {busy ? 'Processing...' : 'Accept'}
+                {busy ? 'Processing...' : 'Accept & Pay'}
               </button>
               <button onClick={() => setShowReject((v) => !v)} disabled={busy} className="btn-danger">
                 <X size={13} strokeWidth={1.5} />
                 Reject
-              </button>
-              <button onClick={handlePay} disabled={busy} className="btn-primary" style={{ width: 'auto', padding: '8px 16px' }}>
-                <CircleDollarSign size={13} strokeWidth={1.5} className="inline mr-1.5" />
-                {busy ? 'Processing...' : 'Pay'}
               </button>
             </div>
           )}
 
           {invoice.status === 'accepted' && (
             <button onClick={handlePay} disabled={busy} className="btn-primary" style={{ width: 'auto', padding: '8px 16px' }}>
-              <CircleDollarSign size={13} strokeWidth={1.5} className="inline mr-1.5" />
-              {busy ? 'Processing...' : 'Pay'}
+              {busy ? 'Processing...' : 'Accept & Pay'}
             </button>
           )}
 
@@ -493,6 +396,23 @@ export default function InvoiceDetail() {
         </div>
       )}
 
+      {insufficientFunds && (
+        <div className="nyx-card p-6 border border-[rgba(234,179,8,0.3)] bg-[rgba(234,179,8,0.06)]">
+          <p className="text-yellow-300 text-sm font-medium mb-2">Insufficient private balance</p>
+          <p className="text-nyx-muted text-sm mb-4">
+            This invoice needs {fmtMoney(invoice.amount, invoice.tokenSymbol)} but your private balance is lower.
+          </p>
+          <div className="flex gap-2">
+            <button onClick={() => navigate('/wallet')} className="btn-secondary">
+              Go To Wallet
+            </button>
+            <button onClick={() => navigate('/profile')} className="btn-secondary">
+              Go To Profile
+            </button>
+          </div>
+        </div>
+      )}
+
       {isIssuer && (
         <div className="nyx-card p-6">
           <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-2">Issuer View</p>
@@ -500,45 +420,11 @@ export default function InvoiceDetail() {
             Counterparty: <span className="text-nyx-text">{shortAddress(invoice.payerAddress)}</span>
           </p>
           <p className="text-nyx-muted text-sm mt-1">
-            Status: <span className="text-nyx-text uppercase">{invoice.status}</span>
+            Status: <span className="text-nyx-text uppercase">{currentStatus.label}</span>
           </p>
         </div>
       )}
 
-      {showFundModal && (
-        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="nyx-card p-6 w-full max-w-md">
-            <p className="text-xl font-semibold text-nyx-text mb-2">Insufficient private balance</p>
-            <p className="text-nyx-muted text-sm mb-4">
-              You need {fmtMoney(invoice.amount, invoice.tokenSymbol)} in private {invoice.tokenSymbol} to pay this invoice.
-            </p>
-            <p className="text-nyx-muted text-xs mb-4">
-              Current private balance: {Number(privateTokenBalance) / 10 ** tokenDecimals}
-            </p>
-
-            {!publicAddress ? (
-              <button onClick={connectPublicWallet} disabled={busy} className="btn-secondary w-full justify-center">
-                Connect Public Wallet
-              </button>
-            ) : (
-              <div className="space-y-3">
-                <p className="text-nyx-muted text-xs">Connected: <span className="font-mono">{shortAddress(publicAddress)}</span></p>
-                <button onClick={fundAndPay} disabled={busy} className="btn-primary">
-                  {busy ? 'Processing...' : 'Fund & Pay'}
-                </button>
-              </div>
-            )}
-
-            <button
-              onClick={() => setShowFundModal(false)}
-              disabled={busy}
-              className="btn-ghost text-nyx-muted text-sm hover:text-nyx-text mt-3"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
     </main>
   )
 }
