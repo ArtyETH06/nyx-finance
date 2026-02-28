@@ -74,6 +74,7 @@ export default function CreateInvoice() {
   const navigate = useNavigate()
   const [form, setForm] = useState<FormState>(empty)
   const [submitting, setSubmitting] = useState(false)
+  const [copiedAddress, setCopiedAddress] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [submittingDots, setSubmittingDots] = useState(1)
 
@@ -124,6 +125,14 @@ export default function CreateInvoice() {
       const next = prev.lineItems.filter((_, i) => i !== index)
       return { ...prev, lineItems: next }
     })
+  }
+
+  async function handleCopyAddress() {
+    const address = activeAccount?.address
+    if (!address) return
+    await navigator.clipboard.writeText(address)
+    setCopiedAddress(true)
+    window.setTimeout(() => setCopiedAddress(false), 1500)
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -256,8 +265,22 @@ export default function CreateInvoice() {
             <input className={inputCls} value={form.issuerCompany} onChange={set('issuerCompany')} placeholder="Acme Corp" />
           </Field>
           <div className="mt-4 pt-4 border-t border-nyx-border">
-            <p className="text-[10px] font-semibold tracking-widest text-nyx-muted uppercase mb-1">Your ZK Address</p>
-            <p className="font-mono text-nyx-muted text-xs break-all">{activeAccount?.address}</p>
+            <p className="text-[10px] font-semibold tracking-widest text-nyx-muted uppercase mb-2">Your Unlink Address</p>
+            <div
+              className="relative group cursor-pointer inline-block w-full"
+              onClick={handleCopyAddress}
+            >
+              <p className={`font-mono text-sm break-all transition-colors duration-150 select-none ${
+                copiedAddress ? 'text-nyx-success' : 'text-nyx-text group-hover:text-nyx-accent'
+              }`}>
+                {copiedAddress ? 'Copied!' : (activeAccount?.address ?? 'Wallet not ready')}
+              </p>
+              {!copiedAddress && (
+                <span className="absolute -top-7 left-0 text-[10px] text-nyx-muted bg-nyx-secondary border border-nyx-border px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap pointer-events-none z-10">
+                  Click to copy
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
