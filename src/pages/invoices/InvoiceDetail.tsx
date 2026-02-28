@@ -151,6 +151,15 @@ export default function InvoiceDetail() {
     return () => window.clearInterval(timer)
   }, [loading])
 
+  useEffect(() => {
+    if (!loading) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [loading])
+
   async function patchInvoice(patch: Record<string, unknown>) {
     if (!id) throw new Error('Missing invoice id')
 
