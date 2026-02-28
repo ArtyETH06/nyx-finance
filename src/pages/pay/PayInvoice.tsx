@@ -164,17 +164,51 @@ export default function PayInvoice() {
       const depositTo = startData.deposit?.to
       const depositCalldata = startData.deposit?.calldata
       if (!isHexAddress(depositTo) || !isHexCalldata(depositCalldata)) {
+        console.error('[payment] invalid start payload', {
+          lockId: startData.lockId,
+          depositTo,
+          depositCalldata,
+          depositValue: startData.deposit?.value,
+        })
         throw new Error('Invalid deposit transaction payload from settlement service')
       }
+      console.log('[payment] start payload validated', {
+        lockId: startData.lockId,
+        depositTo,
+        calldataBytes: (depositCalldata.length - 2) / 2,
+        depositValue: startData.deposit?.value,
+      })
 
       setStatusText('Submitting deposit to pool from generated wallet...')
       const provider = new JsonRpcProvider(resolveRpcUrl())
       const signer = new Wallet(depositWallet.privateKey, provider)
-      const depositTx = await signer.sendTransaction({
+      const txRequest = {
+        from: signer.address,
         to: depositTo,
         data: depositCalldata,
         value: BigInt(String(startData.deposit?.value ?? '0')),
-        gasLimit: 350000n,
+      }
+      let gasLimit = 900000n
+      try {
+        const estimated = await provider.estimateGas(txRequest)
+        gasLimit = (estimated * 130n) / 100n + 50000n
+      } catch (err) {
+        console.warn('[payment] deposit gas estimation failed, using fallback gas limit', {
+          error: err instanceof Error ? err.message : String(err),
+          fallbackGasLimit: gasLimit.toString(),
+        })
+      }
+      console.log('[payment] broadcasting deposit tx', {
+        to: depositTo,
+        value: txRequest.value.toString(),
+        calldataBytes: (depositCalldata.length - 2) / 2,
+        gasLimit: gasLimit.toString(),
+      })
+      const depositTx = await signer.sendTransaction({
+        to: txRequest.to,
+        data: txRequest.data,
+        value: txRequest.value,
+        gasLimit,
       })
       await depositTx.wait(1)
 
@@ -333,8 +367,20 @@ export default function PayInvoice() {
       const depositTo = startData.deposit?.to
       const depositCalldata = startData.deposit?.calldata
       if (!isHexAddress(depositTo) || !isHexCalldata(depositCalldata)) {
+        console.error('[payment] invalid start payload', {
+          lockId: startData.lockId,
+          depositTo,
+          depositCalldata,
+          depositValue: startData.deposit?.value,
+        })
         throw new Error('Invalid deposit transaction payload from settlement service')
       }
+      console.log('[payment] start payload validated', {
+        lockId: startData.lockId,
+        depositTo,
+        calldataBytes: (depositCalldata.length - 2) / 2,
+        depositValue: startData.deposit?.value,
+      })
       setStatusText('Temporary private settlement address created')
 
       setStatusText('Confirm payment in MetaMask...')
