@@ -18,7 +18,7 @@ function AppInner() {
   if (!ready) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-nyx-bg">
-        <div className="text-nyx-muted text-sm">Initializing...</div>
+        <div className="text-nyx-muted text-sm tracking-wide">Initializing...</div>
       </div>
     )
   }
@@ -30,7 +30,7 @@ function AppInner() {
   if (!activeAccount) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-nyx-bg">
-        <div className="text-nyx-muted text-sm">Setting up account...</div>
+        <div className="text-nyx-muted text-sm tracking-wide">Setting up account...</div>
       </div>
     )
   }

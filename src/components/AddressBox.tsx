@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useUnlink } from '@unlink-xyz/react'
 import { useNavigate } from 'react-router-dom'
+import { Wallet, User, KeyRound, Trash2 } from 'lucide-react'
 
 function shortenUnlinkAddress(address: string): string {
   if (address.length <= 16) return address
@@ -55,36 +56,53 @@ export default function AddressBox() {
       <button
         onClick={handleCopy}
         onMouseEnter={() => setDropdownOpen(true)}
-        className="flex items-center gap-2 px-3 py-1.5 bg-nyx-card border border-nyx-border rounded-lg text-sm text-nyx-text cursor-pointer transition-colors hover:border-nyx-accent select-none"
+        className={[
+          'flex items-center gap-2 px-3 py-1.5 select-none cursor-pointer',
+          'bg-nyx-secondary rounded-full text-sm text-nyx-text font-mono',
+          'border transition-all duration-150',
+          copied
+            ? 'border-nyx-success text-nyx-success'
+            : 'border-[rgba(255,255,255,0.08)] hover:shadow-pill-hover hover:border-nyx-accent',
+        ].join(' ')}
       >
-        <span className="w-2 h-2 rounded-full bg-nyx-success flex-shrink-0" />
-        <span className="font-mono">
-          {copied ? 'Copied!' : shortenUnlinkAddress(address)}
-        </span>
+        {copied ? (
+          <>
+            <span className="w-1.5 h-1.5 rounded-full bg-nyx-success flex-shrink-0" />
+            <span className="text-nyx-success">Copied!</span>
+          </>
+        ) : (
+          <>
+            <Wallet size={13} className="text-nyx-muted flex-shrink-0" strokeWidth={1.5} />
+            <span>{shortenUnlinkAddress(address)}</span>
+          </>
+        )}
       </button>
 
       {dropdownOpen && (
         <div
-          className="absolute right-0 top-full mt-1 w-48 bg-nyx-card border border-nyx-border rounded-lg shadow-xl overflow-hidden z-50"
+          className="dropdown-animate absolute right-0 top-full mt-2 w-52 bg-nyx-secondary border border-[rgba(255,255,255,0.08)] rounded-xl shadow-2xl overflow-hidden z-50"
           onMouseLeave={() => setDropdownOpen(false)}
         >
           <button
             onClick={() => { setDropdownOpen(false); navigate('/profile') }}
-            className="w-full text-left px-4 py-2.5 text-sm text-nyx-text hover:bg-nyx-border transition-colors"
+            className="w-full text-left px-4 py-3 text-sm text-nyx-muted hover:text-nyx-text hover:bg-[rgba(255,255,255,0.04)] transition-all duration-150 flex items-center gap-3"
           >
+            <User size={14} strokeWidth={1.5} />
             Profile
           </button>
           <button
             onClick={handleExportMnemonic}
-            className="w-full text-left px-4 py-2.5 text-sm text-nyx-text hover:bg-nyx-border transition-colors"
+            className="w-full text-left px-4 py-3 text-sm text-nyx-muted hover:text-nyx-text hover:bg-[rgba(255,255,255,0.04)] transition-all duration-150 flex items-center gap-3"
           >
+            <KeyRound size={14} strokeWidth={1.5} />
             Export Mnemonic
           </button>
-          <div className="border-t border-nyx-border" />
+          <div className="border-t border-[rgba(255,255,255,0.06)]" />
           <button
             onClick={handleClearWallet}
-            className="w-full text-left px-4 py-2.5 text-sm text-nyx-danger hover:bg-nyx-border transition-colors"
+            className="w-full text-left px-4 py-3 text-sm text-nyx-danger hover:bg-[rgba(239,68,68,0.06)] transition-all duration-150 flex items-center gap-3"
           >
+            <Trash2 size={14} strokeWidth={1.5} />
             Clear Wallet
           </button>
         </div>

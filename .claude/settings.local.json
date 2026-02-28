@@ -5,7 +5,9 @@
       "Bash(npm create vite@latest . -- --template react-ts 2>&1 || true)",
       "Bash(npm install 2>&1)",
       "Bash(npx tsc --noEmit -p tsconfig.app.json 2>&1)",
-      "Bash(npx vite build 2>&1)"
+      "Bash(npx vite build 2>&1)",
+      "Bash(npm install lucide-react 2>&1 | tail -3)",
+      "Bash(npx tsc --noEmit -p tsconfig.app.json 2>&1 && echo \"OK\")"
     ]
   }
 }

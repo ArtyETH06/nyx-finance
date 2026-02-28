@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUnlink } from '@unlink-xyz/react'
+import { ArrowLeft, Copy, Trash2, Eye, EyeOff } from 'lucide-react'
 
 export default function Profile() {
   const { activeAccount, exportMnemonic, clearWallet } = useUnlink()
@@ -36,68 +37,64 @@ export default function Profile() {
     <main className="max-w-2xl mx-auto px-6 py-16">
       <button
         onClick={() => navigate('/')}
-        className="text-nyx-muted text-sm hover:text-nyx-text transition-colors mb-8 flex items-center gap-1"
+        className="btn-ghost text-nyx-muted text-sm hover:text-nyx-text mb-8 flex items-center gap-1.5"
       >
-        ← Back
+        <ArrowLeft size={14} strokeWidth={1.5} />
+        Back
       </button>
 
-      <h1 className="text-2xl font-semibold text-nyx-text mb-8">Profile</h1>
+      <h1 className="text-2xl font-semibold text-nyx-text mb-8 tracking-tight">Profile</h1>
 
       <div className="space-y-4">
         {/* Address */}
-        <div className="bg-nyx-card border border-nyx-border rounded-xl p-6">
-          <p className="text-nyx-muted text-xs uppercase tracking-wider mb-3">Private Address</p>
+        <div className="nyx-card p-6">
+          <p className="text-nyx-muted text-xs uppercase tracking-widest mb-3">Private Address</p>
           <p className="font-mono text-nyx-text text-sm break-all mb-4">{address}</p>
-          <button
-            onClick={handleCopy}
-            className="px-4 py-2 text-sm bg-nyx-bg border border-nyx-border rounded-lg text-nyx-text hover:border-nyx-accent transition-colors"
-          >
+          <button onClick={handleCopy} className="btn-secondary">
+            <Copy size={13} strokeWidth={1.5} />
             {copied ? 'Copied!' : 'Copy Address'}
           </button>
         </div>
 
         {/* Export Mnemonic */}
-        <div className="bg-nyx-card border border-nyx-border rounded-xl p-6">
-          <p className="text-nyx-muted text-xs uppercase tracking-wider mb-1">Recovery Phrase</p>
+        <div className="nyx-card p-6">
+          <p className="text-nyx-muted text-xs uppercase tracking-widest mb-1">Recovery Phrase</p>
           <p className="text-nyx-muted text-sm mb-4">
             Export your 12-word recovery phrase. Keep it private and secure.
           </p>
 
           {showMnemonic && mnemonic ? (
             <div className="mb-4">
-              <div className="bg-nyx-bg border border-nyx-border rounded-lg p-4 mb-2">
+              <div className="bg-nyx-bg border border-[rgba(255,255,255,0.06)] rounded-xl p-4 mb-2">
                 <p className="font-mono text-nyx-text text-sm leading-relaxed break-words select-all">
                   {mnemonic}
                 </p>
               </div>
-              <p className="text-nyx-muted text-xs">Click phrase to select all. Never share this.</p>
+              <p className="text-nyx-muted text-xs mb-3">Click phrase to select all. Never share this.</p>
               <button
                 onClick={() => { setShowMnemonic(false); setMnemonic(null) }}
-                className="mt-3 text-xs text-nyx-muted hover:text-nyx-text transition-colors"
+                className="btn-ghost text-nyx-muted text-xs hover:text-nyx-text flex items-center gap-1.5"
               >
+                <EyeOff size={12} strokeWidth={1.5} />
                 Hide
               </button>
             </div>
           ) : (
-            <button
-              onClick={handleExportMnemonic}
-              className="px-4 py-2 text-sm bg-nyx-bg border border-nyx-border rounded-lg text-nyx-text hover:border-nyx-accent transition-colors"
-            >
+            <button onClick={handleExportMnemonic} className="btn-secondary">
+              <Eye size={13} strokeWidth={1.5} />
               Export Mnemonic
             </button>
           )}
         </div>
 
         {/* Clear Wallet */}
-        <div className="bg-nyx-card border border-nyx-danger/30 rounded-xl p-6">
-          <p className="text-nyx-muted text-xs uppercase tracking-wider mb-1">Danger Zone</p>
+        <div className="nyx-card p-6" style={{ borderColor: 'rgba(239,68,68,0.2)' }}>
+          <p className="text-nyx-muted text-xs uppercase tracking-widest mb-1">Danger Zone</p>
           <p className="text-nyx-muted text-sm mb-4">
             Permanently remove your wallet from this device. This cannot be undone without your recovery phrase.
           </p>
-          <button
-            onClick={handleClearWallet}
-            className="px-4 py-2 text-sm bg-nyx-bg border border-nyx-danger/50 rounded-lg text-nyx-danger hover:bg-nyx-danger/10 transition-colors"
-          >
+          <button onClick={handleClearWallet} className="btn-danger">
+            <Trash2 size={13} strokeWidth={1.5} />
             Clear Wallet
           </button>
         </div>
