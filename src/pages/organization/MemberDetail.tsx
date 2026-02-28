@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { parseAmount, useUnlink } from '@unlink-xyz/react'
 import {
-  ArrowLeft, Copy, Check, Download, Loader2,
+  ArrowLeft, Copy, Download, Loader2,
   DollarSign, Calendar, Clock, ShieldCheck, User,
   CheckCircle2, AlertCircle,
 } from 'lucide-react'
 import { toast } from '../../lib/toast'
 import { buildPayrollPdf, sha256Blob, downloadPdf } from '../../lib/payrollPdf'
-import { TOKENS, NATIVE_TOKEN_ADDRESS } from '../../lib/tokens'
+import { NATIVE_TOKEN_ADDRESS } from '../../lib/tokens'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

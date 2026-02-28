@@ -111,7 +111,11 @@ const ORG_COLLECTION = 'organizations'
 const PAYCHECK_COLLECTION = 'paychecks'
 const SCHEDULED_COLLECTION = 'scheduled_payments'
 const VERCEL_ENV = process.env.VERCEL_ENV // 'production' | 'preview' | 'development' | undefined
-const REQUIRE_REMOTE_DB = VERCEL_ENV === 'production' || VERCEL_ENV === 'preview' || process.env.NODE_ENV === 'production'
+// If MONGODB_URI is explicitly provided, always require it — never silently fall back to file store
+const HAS_REMOTE_URI = !!process.env.MONGODB_URI
+const REQUIRE_REMOTE_DB = HAS_REMOTE_URI || VERCEL_ENV === 'production' || VERCEL_ENV === 'preview' || process.env.NODE_ENV === 'production'
+// Use a short timeout for local-only dev (no URI set), longer for real remote connections
+const SERVER_SELECTION_TIMEOUT = HAS_REMOTE_URI ? 10000 : 300
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DATA_DIR = path.join(__dirname, '..', '.data')
@@ -120,9 +124,12 @@ const ORG_DATA_FILE = path.join(DATA_DIR, 'organizations.json')
 const PAYCHECK_DATA_FILE = path.join(DATA_DIR, 'paychecks.json')
 const SCHEDULED_DATA_FILE = path.join(DATA_DIR, 'scheduled_payments.json')
 
-let client: MongoClient | null = null
+// Store on globalThis so the connection survives module re-evaluations
+// (vercel dev re-imports modules on each request; globalThis persists within the process)
+const g = globalThis as typeof globalThis & {
+  _nyxMongoPromise?: Promise<MongoClient | null>
+}
 let useFileStore = false
-let warnedFallback = false
 
 function normalizeAddress(address: string): string {
   return address.trim().toLowerCase()
@@ -192,28 +199,34 @@ function writeAllScheduledFile(data: ScheduledPaymentDoc[]) {
   fs.writeFileSync(SCHEDULED_DATA_FILE, JSON.stringify(data, null, 2), 'utf-8')
 }
 
+function getClient(): Promise<MongoClient | null> {
+  if (useFileStore) return Promise.resolve(null)
+  if (!g._nyxMongoPromise) {
+    const mongo = new MongoClient(MONGODB_URI, {
+      serverSelectionTimeoutMS: SERVER_SELECTION_TIMEOUT,
+      maxIdleTimeMS: 120_000,
+      socketTimeoutMS: 30_000,
+    })
+    g._nyxMongoPromise = mongo.connect().then(
+      () => {
+        console.log('[db] MongoDB connected')
+        return mongo as MongoClient | null
+      },
+      (err) => {
+        g._nyxMongoPromise = undefined
+        if (REQUIRE_REMOTE_DB) throw err
+        useFileStore = true
+        console.warn('[db] Mongo unavailable, falling back to file store:', (err as Error).message)
+        return null
+      },
+    )
+  }
+  return g._nyxMongoPromise
+}
+
 async function getCollection() {
-  if (REQUIRE_REMOTE_DB && !process.env.MONGODB_URI) {
-    throw new Error('MONGODB_URI is required in production/serverless environments')
-  }
-  if (useFileStore) return null
-  try {
-    if (!client) {
-      client = new MongoClient(MONGODB_URI, { serverSelectionTimeoutMS: 2500 })
-      await client.connect()
-    }
-    return client.db(MONGODB_DB).collection<InvoiceDoc>(COLLECTION)
-  } catch (err) {
-    if (REQUIRE_REMOTE_DB) {
-      throw err
-    }
-    useFileStore = true
-    if (!warnedFallback) {
-      warnedFallback = true
-      console.warn('[db] Mongo unavailable, falling back to file store:', (err as Error).message)
-    }
-    return null
-  }
+  const mongo = await getClient()
+  return mongo ? mongo.db(MONGODB_DB).collection<InvoiceDoc>(COLLECTION) : null
 }
 
 function toObjectId(id: string): ObjectId | null {
@@ -242,25 +255,8 @@ export function toPublicInvoice(doc: InvoiceDoc) {
 }
 
 async function getOrgCollection() {
-  if (REQUIRE_REMOTE_DB && !process.env.MONGODB_URI) {
-    throw new Error('MONGODB_URI is required in production/serverless environments')
-  }
-  if (useFileStore) return null
-  try {
-    if (!client) {
-      client = new MongoClient(MONGODB_URI, { serverSelectionTimeoutMS: 2500 })
-      await client.connect()
-    }
-    return client.db(MONGODB_DB).collection<OrganizationDoc>(ORG_COLLECTION)
-  } catch (err) {
-    if (REQUIRE_REMOTE_DB) throw err
-    useFileStore = true
-    if (!warnedFallback) {
-      warnedFallback = true
-      console.warn('[db] Mongo unavailable, falling back to file store:', (err as Error).message)
-    }
-    return null
-  }
+  const mongo = await getClient()
+  return mongo ? mongo.db(MONGODB_DB).collection<OrganizationDoc>(ORG_COLLECTION) : null
 }
 
 function orgIdFilter(id: string): Filter<OrganizationDoc> {
@@ -425,16 +421,8 @@ export const db = {
 // ─── Paycheck DB ──────────────────────────────────────────────────────────────
 
 async function getPaycheckCollection() {
-  if (REQUIRE_REMOTE_DB && !process.env.MONGODB_URI) throw new Error('MONGODB_URI required')
-  if (useFileStore) return null
-  try {
-    if (!client) { client = new MongoClient(MONGODB_URI, { serverSelectionTimeoutMS: 2500 }); await client.connect() }
-    return client.db(MONGODB_DB).collection<PaycheckDoc>(PAYCHECK_COLLECTION)
-  } catch (err) {
-    if (REQUIRE_REMOTE_DB) throw err
-    useFileStore = true
-    return null
-  }
+  const mongo = await getClient()
+  return mongo ? mongo.db(MONGODB_DB).collection<PaycheckDoc>(PAYCHECK_COLLECTION) : null
 }
 
 export function toPublicPaycheck(doc: PaycheckDoc) {
@@ -481,16 +469,8 @@ export const paycheckDb = {
 // ─── Scheduled Payment DB ─────────────────────────────────────────────────────
 
 async function getScheduledCollection() {
-  if (REQUIRE_REMOTE_DB && !process.env.MONGODB_URI) throw new Error('MONGODB_URI required')
-  if (useFileStore) return null
-  try {
-    if (!client) { client = new MongoClient(MONGODB_URI, { serverSelectionTimeoutMS: 2500 }); await client.connect() }
-    return client.db(MONGODB_DB).collection<ScheduledPaymentDoc>(SCHEDULED_COLLECTION)
-  } catch (err) {
-    if (REQUIRE_REMOTE_DB) throw err
-    useFileStore = true
-    return null
-  }
+  const mongo = await getClient()
+  return mongo ? mongo.db(MONGODB_DB).collection<ScheduledPaymentDoc>(SCHEDULED_COLLECTION) : null
 }
 
 export function toPublicScheduled(doc: ScheduledPaymentDoc) {

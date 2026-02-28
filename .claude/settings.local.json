@@ -12,7 +12,9 @@
       "Bash(npx tsc --noEmit -p tsconfig.app.json 2>&1 && echo \"FRONTEND OK\")",
       "Bash(mongosh --eval \"db.runCommand\\({ping:1}\\)\" --quiet 2>&1 | head -5)",
       "Bash(nc -z localhost 27017 2>&1 && echo \"MongoDB is reachable\" || echo \"MongoDB not reachable on 27017\")",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(mongod:*)",
+      "Bash(npm run:*)"
     ]
   }
 }

@@ -17,6 +17,7 @@ import InvoiceDetail from './pages/invoices/InvoiceDetail'
 import OrgDashboard from './pages/organization/OrgDashboard'
 import Teams from './pages/organization/Teams'
 import OrgDetail from './pages/organization/OrgDetail'
+import MemberDetail from './pages/organization/MemberDetail'
 
 function FullscreenLoader({ label }: { label: string }) {
   return (
@@ -67,6 +68,7 @@ function AppInner() {
             <Route index element={<OrgDashboard />} />
             <Route path="teams" element={<Teams />} />
             <Route path="teams/:id" element={<OrgDetail />} />
+            <Route path="teams/:id/members/:memberAddress" element={<MemberDetail />} />
           </Route>
         </Routes>
       </div>

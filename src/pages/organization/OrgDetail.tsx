@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useUnlink } from '@unlink-xyz/react'
 import {
   Users, UserPlus, Loader2, ShieldCheck, User,
@@ -204,6 +204,7 @@ function SalaryEditor({ member, orgId, onSaved, onCancel }: SalaryEditorProps) {
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function OrgDetail() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const { activeAccount } = useUnlink()
   const [org, setOrg]         = useState<Organization | null>(null)
   const [loading, setLoading] = useState(true)
@@ -417,7 +418,10 @@ export default function OrgDetail() {
                   <div className="flex items-center gap-4 px-6 py-4 hover:bg-[rgba(255,255,255,0.02)] transition-colors">
 
                     {/* Identity */}
-                    <div className="flex-1 min-w-0">
+                    <div
+                      className="flex-1 min-w-0 cursor-pointer"
+                      onClick={() => navigate(`/organization/teams/${org._id}/members/${m.address}`)}
+                    >
                       {name && (
                         <p className="text-nyx-text text-sm font-medium leading-tight">
                           {name}
