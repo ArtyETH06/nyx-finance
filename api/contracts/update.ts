@@ -1,4 +1,4 @@
-import { db, toPublicInvoice, type InvoiceDoc } from '../../server/db'
+import { db, toPublicInvoice, type InvoiceDoc } from '../../server/db.js'
 
 function setNoStore(res: any) {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
