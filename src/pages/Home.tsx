@@ -1,4 +1,4 @@
-import { ArrowRight, FileText, ShieldCheck, Wallet, Workflow, Zap, type LucideIcon } from 'lucide-react'
+import { ArrowRight, Building2, FileText, type LucideIcon } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 function ServiceCard({
@@ -23,18 +23,18 @@ function ServiceCard({
 
 export default function Home() {
   return (
-    <main className="max-w-6xl mx-auto px-6 py-12 space-y-8">
-      <section className="nyx-card p-8 md:p-10">
+    <main className="max-w-6xl mx-auto px-6 py-8 space-y-6">
+      <section className="nyx-card p-6 md:p-7">
         <p className="text-[10px] uppercase tracking-[0.22em] text-nyx-muted mb-3">NYX Platform</p>
         <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-nyx-text mb-4">
           Private business operations on public blockchain rails.
         </h1>
         <p className="text-nyx-muted text-sm md:text-base max-w-3xl leading-relaxed">
-          NYX helps teams invoice, settle payments, and manage treasury flows with privacy by default.
-          Contracts are visible to participants only, while settlement proofs remain verifiable on-chain.
+          NYX is one privacy-first financial product with two connected workflows: invoicing and organization operations.
+          You get unified private coordination with verifiable public-chain proof when it matters.
         </p>
 
-        <div className="mt-7 flex flex-wrap gap-3">
+        <div className="mt-5 flex flex-wrap gap-3">
           <Link to="/invoices" className="btn-primary" style={{ width: 'auto', padding: '9px 16px' }}>
             Open Invoices
             <ArrowRight size={14} strokeWidth={1.5} />
@@ -50,39 +50,19 @@ export default function Home() {
 
       <section>
         <div className="mb-4">
-          <h2 className="text-xl font-semibold text-nyx-text tracking-tight">Services You Offer With NYX</h2>
-          <p className="text-nyx-muted text-sm mt-1">Core business services currently available in your app.</p>
+          <h2 className="text-xl font-semibold text-nyx-text tracking-tight">One Product, Two Workflows</h2>
+          <p className="text-nyx-muted text-sm mt-1">Start with invoices, scale to team and treasury coordination inside the same NYX layer.</p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <ServiceCard
             icon={FileText}
             title="Private Invoicing"
-            description="Create contracts, issue professional invoice PDFs, and track accepted/rejected/paid states with shared persistence."
+            description="Create, review, and settle invoices privately while keeping PDF and payment proof attached for verification."
           />
           <ServiceCard
-            icon={Workflow}
-            title="Invoice Workflow"
-            description="Run full sender-receiver lifecycle: sent, review, reject with reason, accept and pay, then publish payment proof."
-          />
-          <ServiceCard
-            icon={Wallet}
-            title="Private Wallet Ops"
-            description="Deposit, withdraw, and transfer supported Monad testnet tokens from your Unlink private account."
-          />
-          <ServiceCard
-            icon={Zap}
-            title="On-Chain Settlement"
-            description="Settle invoices through Unlink and keep relay ID + transaction proof attached to each paid contract."
-          />
-          <ServiceCard
-            icon={ShieldCheck}
-            title="Proof + Audit Trail"
-            description="Attach deterministic PDF hash and payment evidence for better verification and enterprise-grade traceability."
-          />
-          <ServiceCard
-            icon={ShieldCheck}
-            title="Privacy-First Experience"
-            description="Business data stays participant-focused while still benefiting from public chain finality and transparency."
+            icon={Building2}
+            title="Organization Management"
+            description="Extend the same NYX flow to teams: structure organizations, coordinate members, and manage internal operations privately."
           />
         </div>
       </section>

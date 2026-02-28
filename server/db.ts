@@ -69,10 +69,47 @@ export interface InvoiceDoc {
   }
 }
 
+export type PaycheckStatus = 'pending' | 'confirmed' | 'failed'
+export type ScheduledPaymentStatus = 'scheduled' | 'executed' | 'cancelled'
+
+export interface PaycheckDoc {
+  _id?: ObjectId | string
+  payrollId: string
+  organizationId: string
+  organizationName: string
+  memberAddress: string
+  memberName?: string
+  amount: number
+  currency: string
+  schedule: SalarySchedule
+  executedAt: string
+  txHash?: string
+  relayId?: string
+  status: PaycheckStatus
+  pdfHash: string
+  createdAt: string
+}
+
+export interface ScheduledPaymentDoc {
+  _id?: ObjectId | string
+  organizationId: string
+  organizationName: string
+  memberAddress: string
+  memberName?: string
+  amount: number
+  currency: string
+  schedule: SalarySchedule
+  scheduledFor: string
+  status: ScheduledPaymentStatus
+  createdAt: string
+}
+
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017'
 const MONGODB_DB = process.env.MONGODB_DB || 'nyx_finance'
 const COLLECTION = 'contracts'
 const ORG_COLLECTION = 'organizations'
+const PAYCHECK_COLLECTION = 'paychecks'
+const SCHEDULED_COLLECTION = 'scheduled_payments'
 const VERCEL_ENV = process.env.VERCEL_ENV // 'production' | 'preview' | 'development' | undefined
 const REQUIRE_REMOTE_DB = VERCEL_ENV === 'production' || VERCEL_ENV === 'preview' || process.env.NODE_ENV === 'production'
 
@@ -80,6 +117,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DATA_DIR = path.join(__dirname, '..', '.data')
 const DATA_FILE = path.join(DATA_DIR, 'contracts.json')
 const ORG_DATA_FILE = path.join(DATA_DIR, 'organizations.json')
+const PAYCHECK_DATA_FILE = path.join(DATA_DIR, 'paychecks.json')
+const SCHEDULED_DATA_FILE = path.join(DATA_DIR, 'scheduled_payments.json')
 
 let client: MongoClient | null = null
 let useFileStore = false
@@ -125,6 +164,32 @@ function readAllOrgFile(): OrganizationDoc[] {
 function writeAllOrgFile(data: OrganizationDoc[]) {
   ensureOrgFile()
   fs.writeFileSync(ORG_DATA_FILE, JSON.stringify(data, null, 2), 'utf-8')
+}
+
+function ensurePaycheckFile() {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
+  if (!fs.existsSync(PAYCHECK_DATA_FILE)) fs.writeFileSync(PAYCHECK_DATA_FILE, '[]', 'utf-8')
+}
+function readAllPaycheckFile(): PaycheckDoc[] {
+  ensurePaycheckFile()
+  try { return JSON.parse(fs.readFileSync(PAYCHECK_DATA_FILE, 'utf-8')) as PaycheckDoc[] } catch { return [] }
+}
+function writeAllPaycheckFile(data: PaycheckDoc[]) {
+  ensurePaycheckFile()
+  fs.writeFileSync(PAYCHECK_DATA_FILE, JSON.stringify(data, null, 2), 'utf-8')
+}
+
+function ensureScheduledFile() {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
+  if (!fs.existsSync(SCHEDULED_DATA_FILE)) fs.writeFileSync(SCHEDULED_DATA_FILE, '[]', 'utf-8')
+}
+function readAllScheduledFile(): ScheduledPaymentDoc[] {
+  ensureScheduledFile()
+  try { return JSON.parse(fs.readFileSync(SCHEDULED_DATA_FILE, 'utf-8')) as ScheduledPaymentDoc[] } catch { return [] }
+}
+function writeAllScheduledFile(data: ScheduledPaymentDoc[]) {
+  ensureScheduledFile()
+  fs.writeFileSync(SCHEDULED_DATA_FILE, JSON.stringify(data, null, 2), 'utf-8')
 }
 
 async function getCollection() {
@@ -354,5 +419,104 @@ export const db = {
     data[idx] = { ...data[idx], ...withUpdated }
     writeAllFile(data)
     return data[idx]
+  },
+}
+
+// ─── Paycheck DB ──────────────────────────────────────────────────────────────
+
+async function getPaycheckCollection() {
+  if (REQUIRE_REMOTE_DB && !process.env.MONGODB_URI) throw new Error('MONGODB_URI required')
+  if (useFileStore) return null
+  try {
+    if (!client) { client = new MongoClient(MONGODB_URI, { serverSelectionTimeoutMS: 2500 }); await client.connect() }
+    return client.db(MONGODB_DB).collection<PaycheckDoc>(PAYCHECK_COLLECTION)
+  } catch (err) {
+    if (REQUIRE_REMOTE_DB) throw err
+    useFileStore = true
+    return null
+  }
+}
+
+export function toPublicPaycheck(doc: PaycheckDoc) {
+  return { ...doc, _id: doc._id?.toString() }
+}
+
+export const paycheckDb = {
+  async create(doc: PaycheckDoc): Promise<string> {
+    const col = await getPaycheckCollection()
+    if (col) { const r = await col.insertOne(doc); return r.insertedId.toString() }
+    const data = readAllPaycheckFile()
+    const id = `${Date.now()}-${Math.floor(Math.random() * 10000)}`
+    data.push({ ...doc, _id: id })
+    writeAllPaycheckFile(data)
+    return id
+  },
+
+  async listByMember(organizationId: string, memberAddress: string): Promise<PaycheckDoc[]> {
+    const addr = normalizeAddress(memberAddress)
+    const col = await getPaycheckCollection()
+    if (col) {
+      return col.find({ organizationId, memberAddress: { $regex: new RegExp(`^${addr}$`, 'i') } })
+        .sort({ executedAt: -1 }).toArray()
+    }
+    return readAllPaycheckFile()
+      .filter((d) => d.organizationId === organizationId && normalizeAddress(d.memberAddress) === addr)
+      .sort((a, b) => new Date(b.executedAt).getTime() - new Date(a.executedAt).getTime())
+  },
+
+  async patchById(id: string, patch: Partial<PaycheckDoc>): Promise<PaycheckDoc | null> {
+    const byObjectId = ObjectId.isValid(id) ? new ObjectId(id) : null
+    const filter = byObjectId ? { $or: [{ _id: byObjectId }, { _id: id as any }] } : { _id: id as any }
+    const col = await getPaycheckCollection()
+    if (col) { await col.updateOne(filter as any, { $set: patch }); return col.findOne(filter as any) }
+    const data = readAllPaycheckFile()
+    const idx = data.findIndex((d) => String(d._id) === id)
+    if (idx === -1) return null
+    data[idx] = { ...data[idx], ...patch }
+    writeAllPaycheckFile(data)
+    return data[idx]
+  },
+}
+
+// ─── Scheduled Payment DB ─────────────────────────────────────────────────────
+
+async function getScheduledCollection() {
+  if (REQUIRE_REMOTE_DB && !process.env.MONGODB_URI) throw new Error('MONGODB_URI required')
+  if (useFileStore) return null
+  try {
+    if (!client) { client = new MongoClient(MONGODB_URI, { serverSelectionTimeoutMS: 2500 }); await client.connect() }
+    return client.db(MONGODB_DB).collection<ScheduledPaymentDoc>(SCHEDULED_COLLECTION)
+  } catch (err) {
+    if (REQUIRE_REMOTE_DB) throw err
+    useFileStore = true
+    return null
+  }
+}
+
+export function toPublicScheduled(doc: ScheduledPaymentDoc) {
+  return { ...doc, _id: doc._id?.toString() }
+}
+
+export const scheduledPaymentDb = {
+  async create(doc: ScheduledPaymentDoc): Promise<string> {
+    const col = await getScheduledCollection()
+    if (col) { const r = await col.insertOne(doc); return r.insertedId.toString() }
+    const data = readAllScheduledFile()
+    const id = `${Date.now()}-${Math.floor(Math.random() * 10000)}`
+    data.push({ ...doc, _id: id })
+    writeAllScheduledFile(data)
+    return id
+  },
+
+  async listByMember(organizationId: string, memberAddress: string): Promise<ScheduledPaymentDoc[]> {
+    const addr = normalizeAddress(memberAddress)
+    const col = await getScheduledCollection()
+    if (col) {
+      return col.find({ organizationId, memberAddress: { $regex: new RegExp(`^${addr}$`, 'i') } })
+        .sort({ scheduledFor: 1 }).toArray()
+    }
+    return readAllScheduledFile()
+      .filter((d) => d.organizationId === organizationId && normalizeAddress(d.memberAddress) === addr)
+      .sort((a, b) => new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime())
   },
 }
