@@ -4,9 +4,9 @@ import { parseAmount, useUnlink } from '@unlink-xyz/react'
 import { ArrowLeft, Check, Download, Loader2, X } from 'lucide-react'
 import { toast } from '../../lib/toast'
 import type { Invoice } from '../../lib/invoices'
-import { fmtPartyName, formatIssueDate } from '../../lib/invoices'
+import { fmtPartyName, formatIssueDate, invoiceStatusLabel, invoiceStatusPdfText, normalizeInvoiceRecord } from '../../lib/invoices'
 import { buildInvoicePdf, downloadPdf, sha256Blob } from '../../lib/invoicePdf'
-import { USDC, USDT, NATIVE_TOKEN_ADDRESS, getTokenByAddress } from '../../lib/tokens'
+import { getTokenByAddress } from '../../lib/tokens'
 
 function fmtMoney(amount: number, symbol: string) {
   return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${symbol}`
@@ -15,46 +15,6 @@ function fmtMoney(amount: number, symbol: string) {
 function shortAddress(address: string) {
   if (address.length < 16) return address
   return `${address.slice(0, 8)}…${address.slice(-6)}`
-}
-
-function normalizeInvoice(raw: Record<string, unknown>): Invoice {
-  const legacyCurrency = String(raw.currencySymbol ?? raw.tokenSymbol ?? raw.currency ?? 'USDCm')
-  let tokenAddress = typeof raw.tokenAddress === 'string' ? raw.tokenAddress : ''
-  let tokenSymbol = typeof raw.tokenSymbol === 'string' ? raw.tokenSymbol : legacyCurrency
-
-  if (!tokenAddress) {
-    if (legacyCurrency === 'USDTm') {
-      tokenAddress = USDT.address
-      tokenSymbol = 'USDTm'
-    } else if (legacyCurrency === 'MON') {
-      tokenAddress = NATIVE_TOKEN_ADDRESS
-      tokenSymbol = 'MON'
-    } else {
-      tokenAddress = USDC.address
-      tokenSymbol = 'USDCm'
-    }
-  }
-
-  return {
-    _id: String(raw._id ?? ''),
-    invoiceId: String(raw.invoiceId ?? raw._id ?? ''),
-    issuerAddress: String(raw.issuerAddress ?? ''),
-    payerAddress: String(raw.payerAddress ?? ''),
-    issuerInfo: (raw.issuerInfo as Invoice['issuerInfo']) ?? undefined,
-    payerInfo: (raw.payerInfo as Invoice['payerInfo']) ?? undefined,
-    title: String(raw.title ?? ''),
-    description: String(raw.description ?? ''),
-    amount: Number(raw.amount ?? 0),
-    tokenAddress,
-    tokenSymbol,
-    currencySymbol: typeof raw.currencySymbol === 'string' ? raw.currencySymbol : tokenSymbol,
-    status: (raw.status as Invoice['status']) ?? 'sent',
-    rejectionReason: (raw.rejectionReason as string | null) ?? null,
-    pdfHash: String(raw.pdfHash ?? ''),
-    createdAt: String(raw.createdAt ?? new Date().toISOString()),
-    updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : undefined,
-    payment: (raw.payment as Invoice['payment']) ?? undefined,
-  }
 }
 
 export default function InvoiceDetail() {
@@ -97,7 +57,7 @@ export default function InvoiceDetail() {
       const res = await fetch(`/api/contracts/${id}`)
       if (res.ok) {
         const data = await res.json() as Record<string, unknown>
-        setInvoice(normalizeInvoice(data))
+        setInvoice(normalizeInvoiceRecord(data))
         return
       }
 
@@ -107,7 +67,7 @@ export default function InvoiceDetail() {
         const listRes = await fetch(`/api/contracts?address=${encodeURIComponent(address)}`)
         if (!listRes.ok) throw new Error('Failed to load invoice')
         const listRaw = await listRes.json() as Record<string, unknown>[]
-        const list = listRaw.map(normalizeInvoice)
+        const list = listRaw.map(normalizeInvoiceRecord)
         const match = list.find((inv) => inv._id === id || inv.invoiceId === id)
         if (match) {
           setInvoice(match)
@@ -237,7 +197,7 @@ export default function InvoiceDetail() {
         description: invoice.description,
         amount: invoice.amount,
         tokenSymbol: invoice.tokenSymbol,
-        statusText: 'SENT',
+        statusText: invoiceStatusPdfText(invoice.status),
       })
       const blob = pdf.output('blob')
       const regeneratedHash = await sha256Blob(blob)
@@ -264,13 +224,14 @@ export default function InvoiceDetail() {
     )
   }
 
-  const statusView: Record<Invoice['status'], { label: string; cls: string }> = {
-    sent: { label: 'Pending', cls: 'bg-[rgba(234,179,8,0.16)] text-yellow-300' },
-    accepted: { label: 'Pending', cls: 'bg-[rgba(234,179,8,0.16)] text-yellow-300' },
-    rejected: { label: 'Rejected', cls: 'bg-[rgba(239,68,68,0.14)] text-nyx-danger' },
-    paid: { label: 'Paid', cls: 'bg-[rgba(34,197,94,0.12)] text-nyx-success' },
+  const statusView: Record<Invoice['status'], { cls: string }> = {
+    sent: { cls: 'bg-[rgba(234,179,8,0.16)] text-yellow-300' },
+    accepted: { cls: 'bg-[rgba(234,179,8,0.16)] text-yellow-300' },
+    rejected: { cls: 'bg-[rgba(239,68,68,0.14)] text-nyx-danger' },
+    paid: { cls: 'bg-[rgba(34,197,94,0.12)] text-nyx-success' },
   }
   const currentStatus = statusView[invoice.status]
+  const currentStatusLabel = invoiceStatusLabel(invoice.status)
 
   return (
     <main className="px-8 py-10 max-w-4xl space-y-4">
@@ -291,7 +252,7 @@ export default function InvoiceDetail() {
           </div>
           <div className="text-right">
             <span className={`text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-md ${currentStatus.cls}`}>
-              {currentStatus.label}
+              {currentStatusLabel}
             </span>
             <p className="text-nyx-text font-semibold mt-3">{fmtMoney(invoice.amount, invoice.tokenSymbol)}</p>
             <p className="text-nyx-muted text-xs mt-1 font-mono">{shortAddress(invoice.tokenAddress)}</p>
@@ -420,7 +381,7 @@ export default function InvoiceDetail() {
             Counterparty: <span className="text-nyx-text">{shortAddress(invoice.payerAddress)}</span>
           </p>
           <p className="text-nyx-muted text-sm mt-1">
-            Status: <span className="text-nyx-text uppercase">{currentStatus.label}</span>
+            Status: <span className="text-nyx-text uppercase">{currentStatusLabel}</span>
           </p>
         </div>
       )}

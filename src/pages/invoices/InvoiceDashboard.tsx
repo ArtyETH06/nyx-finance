@@ -3,7 +3,7 @@ import { useUnlink } from '@unlink-xyz/react'
 import { useNavigate } from 'react-router-dom'
 import { FilePlus, ArrowUpRight, ArrowDownLeft, RefreshCw } from 'lucide-react'
 import type { Invoice } from '../../lib/invoices'
-import { fmtPartyName } from '../../lib/invoices'
+import { fmtPartyName, invoiceStatusLabel, normalizeInvoiceRecord } from '../../lib/invoices'
 
 const STATUS_STYLES: Record<Invoice['status'], string> = {
   sent: 'bg-[rgba(234,179,8,0.16)] text-yellow-300',
@@ -13,10 +13,10 @@ const STATUS_STYLES: Record<Invoice['status'], string> = {
 }
 
 const STATUS_LABELS: Record<Invoice['status'], string> = {
-  sent: 'Pending',
-  accepted: 'Pending',
-  rejected: 'Rejected',
-  paid: 'Paid',
+  sent: invoiceStatusLabel('sent'),
+  accepted: invoiceStatusLabel('accepted'),
+  rejected: invoiceStatusLabel('rejected'),
+  paid: invoiceStatusLabel('paid'),
 }
 
 function formatAmount(amount: number, symbol: string) {
@@ -25,6 +25,11 @@ function formatAmount(amount: number, symbol: string) {
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function shortHash(hash: string) {
+  if (hash.length < 16) return hash
+  return `${hash.slice(0, 10)}…${hash.slice(-8)}`
 }
 
 function counterpartyLabel(inv: Invoice, address: string) {
@@ -54,7 +59,8 @@ export default function InvoiceDashboard() {
     try {
       const res = await fetch(`/api/contracts?address=${encodeURIComponent(address)}`)
       if (!res.ok) throw new Error('Failed to load invoices')
-      setInvoices(await res.json())
+      const raw = await res.json() as Record<string, unknown>[]
+      setInvoices(raw.map(normalizeInvoiceRecord))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unknown error')
     } finally {
@@ -145,6 +151,24 @@ export default function InvoiceDashboard() {
                   <p className="text-nyx-muted text-xs mt-0.5 truncate">
                     {isSent ? 'To: ' : 'From: '}{counterpartyLabel(inv, address)}
                   </p>
+                  {inv.status === 'paid' && (inv.payment?.txHash || inv.payment?.relayId) && (
+                    <p className="text-nyx-success text-[11px] mt-1 truncate">
+                      Proof:{' '}
+                      {inv.payment?.txHash ? (
+                        <a
+                          href={`https://testnet.monadexplorer.com/tx/${inv.payment.txHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="underline"
+                        >
+                          {shortHash(inv.payment.txHash)}
+                        </a>
+                      ) : (
+                        <span className="font-mono">{shortHash(inv.payment!.relayId!)}</span>
+                      )}
+                    </p>
+                  )}
                 </div>
 
                 {/* Date */}
