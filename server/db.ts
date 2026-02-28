@@ -49,8 +49,8 @@ export interface InvoiceDoc {
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017'
 const MONGODB_DB = process.env.MONGODB_DB || 'nyx_finance'
 const COLLECTION = 'contracts'
-const IS_VERCEL = process.env.VERCEL === '1' || process.env.VERCEL === 'true'
-const REQUIRE_REMOTE_DB = IS_VERCEL || process.env.NODE_ENV === 'production'
+const VERCEL_ENV = process.env.VERCEL_ENV // 'production' | 'preview' | 'development' | undefined
+const REQUIRE_REMOTE_DB = VERCEL_ENV === 'production' || VERCEL_ENV === 'preview' || process.env.NODE_ENV === 'production'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DATA_DIR = path.join(__dirname, '..', '.data')
@@ -101,7 +101,7 @@ async function getCollection() {
     useFileStore = true
     if (!warnedFallback) {
       warnedFallback = true
-      console.warn('[db] Mongo unavailable, falling back to file store:', err)
+      console.warn('[db] Mongo unavailable, falling back to file store:', (err as Error).message)
     }
     return null
   }
