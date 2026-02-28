@@ -17,7 +17,7 @@ import { buildInvoicePdf, downloadPdf, sha256Blob } from '../../lib/invoicePdf'
 import { getTokenByAddress } from '../../lib/tokens'
 
 function fmtMoney(amount: number, symbol: string) {
-  return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${symbol}`
+  return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $${symbol}`
 }
 
 function payPath(invoice: Invoice): string {
@@ -339,9 +339,11 @@ export default function InvoiceDetail() {
 
   if (error || !invoice) {
     return (
-      <main className="px-8 py-10 max-w-3xl mx-auto">
-        <div className="nyx-card p-6 border-nyx-danger/20 text-nyx-danger text-sm">
-          {error ?? 'Invoice not found'}
+      <main className="px-8 py-10 w-full flex justify-center">
+        <div className="w-full max-w-3xl">
+          <div className="nyx-card p-6 border-nyx-danger/20 text-nyx-danger text-sm">
+            {error ?? 'Invoice not found'}
+          </div>
         </div>
       </main>
     )
@@ -359,14 +361,15 @@ export default function InvoiceDetail() {
   const payerName = [invoice.payerInfo?.firstName, invoice.payerInfo?.lastName].filter(Boolean).join(' ').trim() || '—'
 
   return (
-    <main className="px-8 py-10 max-w-3xl mx-auto space-y-4">
-      <button
-        onClick={() => navigate('/invoices')}
-        className="btn-ghost text-nyx-muted text-sm hover:text-nyx-text inline-flex items-center gap-1.5"
-      >
-        <ArrowLeft size={14} strokeWidth={1.5} />
-        Back
-      </button>
+    <main className="px-8 py-10 w-full">
+      <div className="w-full max-w-3xl mx-auto md:-translate-x-20 space-y-4">
+        <button
+          onClick={() => navigate('/invoices')}
+          className="btn-ghost text-nyx-muted text-sm hover:text-nyx-text inline-flex items-center gap-1.5"
+        >
+          <ArrowLeft size={14} strokeWidth={1.5} />
+          Back
+        </button>
 
       <div className="nyx-card p-6">
         <div className="flex items-start justify-between gap-4 mb-5">
@@ -447,7 +450,7 @@ export default function InvoiceDetail() {
           </div>
           <div>
             <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Token</p>
-            <p className="text-nyx-text text-sm">{invoice.tokenSymbol}</p>
+            <p className="text-nyx-text text-sm">${invoice.tokenSymbol}</p>
           </div>
           {isIssuer && (
             <div>
@@ -633,17 +636,17 @@ export default function InvoiceDetail() {
           <Download size={13} strokeWidth={1.5} />
           Download Invoice
         </button>
-      </div>
-
-      {txStatusText && (
-        <div className="nyx-card p-4 flex items-center gap-2 text-nyx-muted text-sm">
-          <Loader2 size={14} className="animate-spin text-nyx-accent" />
-          {txStatusText}
         </div>
-      )}
 
-      {isPayer && invoice.status !== 'rejected' && invoice.status !== 'paid' && (
-        <div className="nyx-card p-6">
+        {txStatusText && (
+          <div className="nyx-card p-4 flex items-center gap-2 text-nyx-muted text-sm">
+            <Loader2 size={14} className="animate-spin text-nyx-accent" />
+            {txStatusText}
+          </div>
+        )}
+
+        {isPayer && invoice.status !== 'rejected' && invoice.status !== 'paid' && (
+          <div className="nyx-card p-6">
           <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-4">Actions</p>
 
           {invoice.status === 'sent' && (
@@ -693,16 +696,27 @@ export default function InvoiceDetail() {
               </button>
             </div>
           )}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
 
-      {showQrModal && isIssuer && (
+      {isIssuer && (
         <div
-          className="fixed inset-0 z-50 bg-[rgba(2,6,23,0.75)] backdrop-blur-sm flex items-center justify-center px-4"
+          className={[
+            'fixed inset-0 z-50 flex items-center justify-center px-4',
+            'transition-opacity duration-220 ease-out',
+            showQrModal
+              ? 'opacity-100 bg-[rgba(2,6,23,0.75)] backdrop-blur-sm pointer-events-auto'
+              : 'opacity-0 pointer-events-none',
+          ].join(' ')}
           onClick={() => setShowQrModal(false)}
         >
           <div
-            className="nyx-card w-full max-w-sm p-5 animate-[fadeIn_220ms_ease-out]"
+            className={[
+              'nyx-card w-full max-w-2xl p-6',
+              'transition-transform duration-220 ease-out',
+              showQrModal ? 'scale-100 translate-y-0' : 'scale-95 translate-y-2',
+            ].join(' ')}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3 mb-3">
@@ -719,11 +733,11 @@ export default function InvoiceDetail() {
                 <X size={14} />
               </button>
             </div>
-            <div className="rounded-lg border border-nyx-border bg-nyx-hover p-3 flex items-center justify-center">
+            <div className="rounded-lg border border-nyx-border bg-nyx-hover p-4 flex items-center justify-center">
               <img
                 src={payQrUrl(invoice)}
                 alt="Payment QR"
-                className="h-64 w-64 rounded-md"
+                className="h-[420px] w-[420px] max-w-full rounded-md"
               />
             </div>
             <a
