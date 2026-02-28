@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUnlink } from '@unlink-xyz/react'
-import { ArrowLeft, Copy, Trash2, Eye, EyeOff, KeyRound, Upload, ShieldAlert } from 'lucide-react'
+import { ArrowLeft, Copy, Trash2, Eye, EyeOff, KeyRound, Upload, ShieldAlert, Wallet } from 'lucide-react'
 
 export default function Profile() {
   const { activeAccount, exportMnemonic, clearWallet, importWallet, busy } = useUnlink()
@@ -19,6 +19,9 @@ export default function Profile() {
   const [importPhrase, setImportPhrase] = useState('')
   const [importStep, setImportStep] = useState<'input' | 'confirm'>('input')
   const [importError, setImportError] = useState<string | null>(null)
+
+  // Clear wallet
+  const [clearStep, setClearStep] = useState<'idle' | 'confirm'>('idle')
 
   const address = activeAccount?.address ?? ''
   const mnemonicWords = mnemonic ? mnemonic.split(' ') : []
@@ -54,12 +57,7 @@ export default function Profile() {
   }
 
   async function handleClearWallet() {
-    const confirmed = confirm(
-      'Are you sure you want to clear your wallet?\n\nThis will permanently delete your private keys from this device. Make sure you have backed up your recovery phrase.'
-    )
-    if (confirmed) {
-      await clearWallet()
-    }
+    await clearWallet()
   }
 
   return (
@@ -72,7 +70,16 @@ export default function Profile() {
         Back
       </button>
 
-      <h1 className="text-2xl font-semibold text-nyx-text mb-8 tracking-tight">Profile</h1>
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-2xl font-semibold text-nyx-text tracking-tight">Profile</h1>
+        <button
+          onClick={() => navigate('/wallet')}
+          className="btn-secondary"
+        >
+          <Wallet size={13} strokeWidth={1.5} />
+          See Wallet
+        </button>
+      </div>
 
       <div className="space-y-4">
 
@@ -207,13 +214,62 @@ export default function Profile() {
         {/* Clear Wallet */}
         <div className="nyx-card p-6" style={{ borderColor: 'rgba(239,68,68,0.2)' }}>
           <p className="text-nyx-muted text-xs uppercase tracking-widest mb-1">Danger Zone</p>
-          <p className="text-nyx-muted text-sm mb-4">
-            Permanently remove your wallet from this device. This cannot be undone without your recovery phrase.
-          </p>
-          <button onClick={handleClearWallet} className="btn-danger">
-            <Trash2 size={13} strokeWidth={1.5} />
-            Clear Wallet
-          </button>
+
+          {clearStep === 'idle' ? (
+            <>
+              <p className="text-nyx-muted text-sm mb-4">
+                Permanently remove your wallet from this device. This cannot be undone without your recovery phrase.
+              </p>
+              <button onClick={() => setClearStep('confirm')} className="btn-danger">
+                <Trash2 size={13} strokeWidth={1.5} />
+                Clear Wallet
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="bg-[rgba(239,68,68,0.06)] border border-nyx-danger/30 rounded-xl p-5 mb-5">
+                <div className="flex gap-3 mb-4">
+                  <ShieldAlert size={20} className="text-nyx-danger flex-shrink-0 mt-0.5" strokeWidth={1.5} />
+                  <div>
+                    <p className="text-nyx-danger font-semibold text-base mb-1">You are about to erase your wallet.</p>
+                    <p className="text-nyx-muted text-sm leading-relaxed">
+                      This action is <strong className="text-nyx-text">permanent and irreversible</strong>. Your private keys will be deleted from this device immediately.
+                    </p>
+                  </div>
+                </div>
+                <ul className="space-y-2 pl-2">
+                  <li className="flex items-start gap-2 text-sm text-nyx-muted">
+                    <span className="text-nyx-danger mt-0.5">✕</span>
+                    All private balances will become inaccessible from this device.
+                  </li>
+                  <li className="flex items-start gap-2 text-sm text-nyx-muted">
+                    <span className="text-nyx-danger mt-0.5">✕</span>
+                    You will need your recovery phrase to restore access.
+                  </li>
+                  <li className="flex items-start gap-2 text-sm text-nyx-muted">
+                    <span className="text-nyx-danger mt-0.5">✕</span>
+                    Without your recovery phrase, funds are lost forever.
+                  </li>
+                </ul>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setClearStep('idle')}
+                  className="btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleClearWallet}
+                  disabled={busy}
+                  className="btn-danger disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Trash2 size={13} strokeWidth={1.5} />
+                  {busy ? 'Clearing...' : 'Yes, Delete My Wallet'}
+                </button>
+              </div>
+            </>
+          )}
         </div>
 
       </div>

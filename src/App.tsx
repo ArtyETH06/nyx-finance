@@ -7,6 +7,7 @@ import Toast from './components/Toast'
 import InvoiceLayout from './components/InvoiceLayout'
 import Home from './pages/Home'
 import Profile from './pages/Profile'
+import Wallet from './pages/Wallet'
 import InvoiceDashboard from './pages/invoices/InvoiceDashboard'
 import CreateInvoice from './pages/invoices/CreateInvoice'
 
@@ -45,6 +46,7 @@ function AppInner() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/wallet" element={<Wallet />} />
         <Route path="/invoices" element={<InvoiceLayout />}>
           <Route index element={<InvoiceDashboard />} />
           <Route path="create" element={<CreateInvoice />} />
