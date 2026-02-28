@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useUnlink, useUnlinkBalances, useDeposit, useWithdraw, parseAmount } from '@unlink-xyz/react'
+import { useUnlink, useUnlinkBalances, parseAmount } from '@unlink-xyz/react'
 import {
   Wifi, ShieldCheck, Wallet as WalletIcon,
   ArrowDownToLine, ArrowUpFromLine, Link as LinkIcon, ChevronDown,
 } from 'lucide-react'
 import { toast } from '../lib/toast'
-import { TOKENS, getTokenByAddress, displayAmount, shortenAddress } from '../lib/tokens'
+import { TOKENS, NATIVE_TOKEN_ADDRESS, getTokenByAddress, displayAmount, shortenAddress } from '../lib/tokens'
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -27,6 +27,15 @@ function SectionHeader({ icon: Icon, title }: { icon: React.ElementType; title: 
 async function fetchPublicBalance(tokenAddress: string, walletAddress: string): Promise<bigint> {
   if (!window.ethereum) return 0n
   try {
+    // Native MON — use eth_getBalance
+    if (tokenAddress.toLowerCase() === NATIVE_TOKEN_ADDRESS.toLowerCase()) {
+      const result: string = await window.ethereum.request({
+        method: 'eth_getBalance',
+        params: [walletAddress, 'latest'],
+      })
+      return result ? BigInt(result) : 0n
+    }
+    // ERC-20 — balanceOf(address)
     const data = '0x70a08231' + walletAddress.slice(2).padStart(64, '0')
     const result: string = await window.ethereum.request({
       method: 'eth_call',
@@ -42,10 +51,11 @@ async function fetchPublicBalance(tokenAddress: string, walletAddress: string): 
 
 export default function Wallet() {
   const navigate = useNavigate()
-  const { ready, walletExists, activeAccount, refresh } = useUnlink()
+  const { ready, walletExists, activeAccount, refresh, deposit, withdraw } = useUnlink()
   const { balances, loading: balancesLoading } = useUnlinkBalances()
-  const { execute: depositExec, isPending: depositPending } = useDeposit()
-  const { execute: withdrawExec, isPending: withdrawPending } = useWithdraw()
+
+  const [depositPending, setDepositPending] = useState(false)
+  const [withdrawPending, setWithdrawPending] = useState(false)
 
   const [copied, setCopied] = useState(false)
   const [copiedToken, setCopiedToken] = useState<string | null>(null)
@@ -117,23 +127,37 @@ export default function Wallet() {
     if (!publicAddress || !depositAmount) return
     const token = getTokenByAddress(depositToken)
     if (!token) return
+    setDepositPending(true)
     try {
       const amount = parseAmount(depositAmount, token.decimals)
-      const result = await depositExec([{ token: token.address, amount, depositor: publicAddress }])
-      if (result && window.ethereum) {
-        const r = result as { to?: string; calldata?: string }
-        if (r.to && r.calldata) {
-          await window.ethereum.request({
-            method: 'eth_sendTransaction',
-            params: [{ to: r.to, data: r.calldata, from: publicAddress }],
-          })
-        }
+      // deposit() returns DepositRelayResult: { to, calldata, value? }
+      const result = await deposit([{ token: token.address, amount, depositor: publicAddress }]) as
+        | { to: string; calldata: string; value?: string }
+        | undefined
+      if (!result) throw new Error('No deposit result returned')
+      if (!window.ethereum) throw new Error('No wallet provider found')
+      const txParams: Record<string, string> = {
+        to: result.to,
+        data: result.calldata,
+        from: publicAddress,
       }
+      // Native token deposits require sending the token amount as tx value
+      if (token.isNative) {
+        txParams.value = '0x' + amount.toString(16)
+      } else if (result.value) {
+        txParams.value = result.value
+      }
+      await window.ethereum.request({
+        method: 'eth_sendTransaction',
+        params: [txParams],
+      })
       await refresh()
       setDepositAmount('')
       toast.show('Deposit submitted. Balances will update shortly.')
     } catch (e) {
       toast.show(e instanceof Error ? e.message : 'Deposit failed.', 'error')
+    } finally {
+      setDepositPending(false)
     }
   }
 
@@ -141,14 +165,17 @@ export default function Wallet() {
     if (!withdrawRecipient || !withdrawAmount || !withdrawToken) return
     const token = getTokenByAddress(withdrawToken)
     if (!token) return
+    setWithdrawPending(true)
     try {
       const amount = parseAmount(withdrawAmount, token.decimals)
-      await withdrawExec([{ token: token.address, amount, recipient: withdrawRecipient }])
+      await withdraw([{ token: token.address, amount, recipient: withdrawRecipient }])
       await refresh()
       setWithdrawAmount('')
       toast.show('Withdrawal submitted. Balances will update shortly.')
     } catch (e) {
       toast.show(e instanceof Error ? e.message : 'Withdrawal failed.', 'error')
+    } finally {
+      setWithdrawPending(false)
     }
   }
 
@@ -408,23 +435,13 @@ export default function Wallet() {
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs text-nyx-muted">Amount</label>
-              {selectedWithdrawToken && (
-                <div className="flex items-center gap-3 text-xs text-nyx-muted">
-                  <span>
-                    Private:{' '}
-                    <span className="text-nyx-text">
-                      {displayAmount(privateWithdrawBalance, selectedWithdrawToken.decimals)} {selectedWithdrawToken.symbol}
-                    </span>
+              {publicAddress && selectedWithdrawToken && publicWithdrawBalance > 0n && (
+                <span className="text-xs text-nyx-muted">
+                  Wallet:{' '}
+                  <span className="text-nyx-text">
+                    {displayAmount(publicWithdrawBalance, selectedWithdrawToken.decimals)} {selectedWithdrawToken.symbol}
                   </span>
-                  {publicAddress && publicWithdrawBalance > 0n && (
-                    <span>
-                      Wallet:{' '}
-                      <span className="text-nyx-text">
-                        {displayAmount(publicWithdrawBalance, selectedWithdrawToken.decimals)} {selectedWithdrawToken.symbol}
-                      </span>
-                    </span>
-                  )}
-                </div>
+                </span>
               )}
             </div>
             <div className="flex gap-2">

@@ -1,14 +1,24 @@
 import { formatAmount } from '@unlink-xyz/react'
 
+export const NATIVE_TOKEN_ADDRESS = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE'
+
 export interface Token {
   address: string
   symbol: string
   decimals: number
   name: string
+  isNative?: boolean
 }
 
 // Token registry for monad-testnet.
 export const TOKENS: Token[] = [
+  {
+    address: NATIVE_TOKEN_ADDRESS,
+    symbol: 'MON',
+    decimals: 18,
+    name: 'Monad (native)',
+    isNative: true,
+  },
   {
     address: '0xaaa4e95d4da878baf8e10745fdf26e196918df6b',
     symbol: 'UNLKm',
