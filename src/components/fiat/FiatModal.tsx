@@ -98,8 +98,8 @@ export default function FiatModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60" onClick={closeAndReset} />
-      <div className="relative w-full max-w-xl rounded-2xl border border-nyx-border bg-nyx-secondary p-5 shadow-2xl">
+      <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={closeAndReset} />
+      <div className="relative w-full max-w-xl rounded-2xl border border-nyx-border bg-nyx-secondary p-5 shadow-[0_24px_70px_rgba(0,0,0,0.55)]">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-lg font-semibold text-nyx-text">AlchemyPay Testnet</h2>

@@ -1,3 +1,5 @@
+import { ChevronDown } from 'lucide-react'
+
 type FiatCurrency = 'USD' | 'EUR'
 type FiatToken = 'MON' | 'USDCm' | 'USDT' | 'UNLKm'
 
@@ -78,14 +80,20 @@ export default function FiatStepBuy({ state, invoiceAmount, onChange, onProceed 
               className={`flex-1 ${inputCls}`}
               placeholder={invoiceAmount.toFixed(2)}
             />
-            <select
-              value={state.currency}
-              onChange={(e) => onChange({ currency: e.target.value as FiatCurrency })}
-              className={inputCls}
-            >
-              <option value="USD">{CURRENCY_BADGE.USD} USD</option>
-              <option value="EUR">{CURRENCY_BADGE.EUR} EUR</option>
-            </select>
+            <div className="relative">
+              <select
+                value={state.currency}
+                onChange={(e) => onChange({ currency: e.target.value as FiatCurrency })}
+                className={`${inputCls} appearance-none pr-14`}
+              >
+                <option value="USD">{CURRENCY_BADGE.USD} USD</option>
+                <option value="EUR">{CURRENCY_BADGE.EUR} EUR</option>
+              </select>
+              <ChevronDown
+                size={14}
+                className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-nyx-muted"
+              />
+            </div>
           </div>
         </div>
 
@@ -95,16 +103,22 @@ export default function FiatStepBuy({ state, invoiceAmount, onChange, onProceed 
             <div className="flex-1 rounded-lg border border-nyx-border bg-nyx-secondary px-3 py-2 text-nyx-text">
               {fmt(receiveAmount)} {state.token}
             </div>
-            <select
-              value={state.token}
-              onChange={(e) => onChange({ token: e.target.value as FiatToken })}
-              className={inputCls}
-            >
-              <option value="MON">{TOKEN_BADGE.MON} MON</option>
-              <option value="USDCm">{TOKEN_BADGE.USDCm} USDCm</option>
-              <option value="USDT">{TOKEN_BADGE.USDT} USDT</option>
-              <option value="UNLKm">{TOKEN_BADGE.UNLKm} UNLKm</option>
-            </select>
+            <div className="relative">
+              <select
+                value={state.token}
+                onChange={(e) => onChange({ token: e.target.value as FiatToken })}
+                className={`${inputCls} appearance-none pr-14`}
+              >
+                <option value="MON">{TOKEN_BADGE.MON} MON</option>
+                <option value="USDCm">{TOKEN_BADGE.USDCm} USDCm</option>
+                <option value="USDT">{TOKEN_BADGE.USDT} USDT</option>
+                <option value="UNLKm">{TOKEN_BADGE.UNLKm} UNLKm</option>
+              </select>
+              <ChevronDown
+                size={14}
+                className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-nyx-muted"
+              />
+            </div>
           </div>
         </div>
 
