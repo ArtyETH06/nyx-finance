@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { parseAmount, useUnlink, useUnlinkHistory } from '@unlink-xyz/react'
-import { ArrowLeft, Check, Download, Link2, Loader2, X } from 'lucide-react'
+import { ArrowLeft, Check, Download, ExternalLink, Link2, Loader2, QrCode, X } from 'lucide-react'
 import { toast } from '../../lib/toast'
 import type { Invoice } from '../../lib/invoices'
 import {
@@ -30,6 +30,11 @@ function payUrl(invoice: Invoice): string {
   return `${window.location.origin}${path}`
 }
 
+function payQrUrl(invoice: Invoice): string {
+  const url = encodeURIComponent(payUrl(invoice))
+  return `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${url}`
+}
+
 export default function InvoiceDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -48,6 +53,8 @@ export default function InvoiceDetail() {
   const [copiedIssuer, setCopiedIssuer] = useState(false)
   const [copiedPayer, setCopiedPayer] = useState(false)
   const [copiedPayLink, setCopiedPayLink] = useState(false)
+  const [showProofDetails, setShowProofDetails] = useState(false)
+  const [showQrModal, setShowQrModal] = useState(false)
 
   function copyAddress(addr: string, which: 'issuer' | 'payer') {
     navigator.clipboard.writeText(addr).then(() => {
@@ -445,7 +452,10 @@ export default function InvoiceDetail() {
           {isIssuer && (
             <div>
               <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Pay Link</p>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="rounded-lg border border-[rgba(108,92,231,0.28)] bg-[rgba(108,92,231,0.10)] p-3 space-y-2">
+                <p className="text-xs text-nyx-text">
+                  Send this payment link to the payer:
+                </p>
                 <a
                   href={payPath(invoice)}
                   target="_blank"
@@ -454,129 +464,157 @@ export default function InvoiceDetail() {
                 >
                   {payUrl(invoice)}
                 </a>
-                <button
-                  type="button"
-                  className="btn-ghost text-nyx-muted text-xs hover:text-nyx-text inline-flex items-center gap-1"
-                  onClick={() => {
-                    navigator.clipboard.writeText(payUrl(invoice)).then(() => {
-                      setCopiedPayLink(true)
-                      setTimeout(() => setCopiedPayLink(false), 1500)
-                    }).catch(() => {})
-                  }}
-                >
-                  <Link2 size={12} />
-                  {copiedPayLink ? 'Copied' : 'Copy'}
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    className="btn-ghost text-nyx-muted text-xs hover:text-nyx-text inline-flex items-center gap-1"
+                    onClick={() => {
+                      navigator.clipboard.writeText(payUrl(invoice)).then(() => {
+                        setCopiedPayLink(true)
+                        setTimeout(() => setCopiedPayLink(false), 1500)
+                      }).catch(() => {})
+                    }}
+                  >
+                    <Link2 size={12} />
+                    {copiedPayLink ? 'Copied' : 'Copy'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary text-xs inline-flex items-center gap-1.5"
+                    onClick={() => setShowQrModal(true)}
+                  >
+                    <QrCode size={12} />
+                    Generate QR Code
+                  </button>
+                </div>
               </div>
             </div>
           )}
           {invoice.status === 'paid' && (invoice.payment?.txHash || invoice.payment?.relayId) && (
             <div className="bg-[rgba(34,197,94,0.05)] border border-[rgba(34,197,94,0.15)] rounded-lg p-4 space-y-3">
-              <p className="text-[10px] uppercase tracking-widest text-nyx-success font-semibold">Payment Proof</p>
-
-              {invoice.payment?.paidAt && (
-                <div>
-                  <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-0.5">Paid At</p>
-                  <p className="text-nyx-text text-xs">{new Date(invoice.payment.paidAt).toLocaleString()}</p>
-                </div>
-              )}
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[10px] uppercase tracking-widest text-nyx-success font-semibold">Payment Proof</p>
+                <button
+                  type="button"
+                  className="btn-ghost text-xs text-nyx-muted hover:text-nyx-text"
+                  onClick={() => setShowProofDetails((prev) => !prev)}
+                >
+                  {showProofDetails ? 'Hide details' : 'See details'}
+                </button>
+              </div>
 
               {invoice.payment?.txHash && (
-                <div>
-                  <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-0.5">Transaction Hash</p>
-                  <a
-                    href={`https://testnet.monadexplorer.com/tx/${invoice.payment.txHash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-mono text-nyx-success text-xs break-all hover:underline"
-                  >
-                    {invoice.payment.txHash}
-                  </a>
-                </div>
+                <a
+                  href={`https://testnet.monadexplorer.com/tx/${invoice.payment.txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-nyx-success text-xs inline-flex items-center gap-1.5 underline"
+                >
+                  <ExternalLink size={12} />
+                  Open in Explorer
+                </a>
               )}
 
-              {invoice.payment?.relayId && (
-                <div>
-                  <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-0.5">Relay ID</p>
-                  <p className="font-mono text-nyx-muted text-xs break-all">{invoice.payment.relayId}</p>
-                </div>
-              )}
-
-              {proofEntry && (
-                <div>
-                  <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">ZK Transfer Record</p>
-                  <div className="bg-nyx-hover rounded-md p-3 space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-nyx-text font-medium">{proofEntry.kind}</span>
-                      <span className={`ml-auto text-[10px] font-semibold uppercase px-2 py-0.5 rounded ${proofEntry.status === 'confirmed' ? 'bg-[rgba(34,197,94,0.12)] text-nyx-success' : 'bg-nyx-hover text-nyx-muted'}`}>
-                        {proofEntry.status}
-                      </span>
+              {showProofDetails && (
+                <div className="space-y-3 pt-1">
+                  {invoice.payment?.paidAt && (
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-0.5">Paid At</p>
+                      <p className="text-nyx-text text-xs">{new Date(invoice.payment.paidAt).toLocaleString()}</p>
                     </div>
-                    {proofEntry.timestamp && (
-                      <p className="text-nyx-muted text-xs">{new Date(proofEntry.timestamp).toLocaleString()}</p>
-                    )}
-                    {proofEntry.amounts.map(({ token, delta }) => (
-                      <div key={token} className="flex items-center gap-2 text-xs font-mono">
-                        <span className="text-nyx-muted truncate">{token.slice(0, 10)}…</span>
-                        <span className={delta.startsWith('-') ? 'text-nyx-danger' : 'text-nyx-success'}>{delta}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                  )}
 
-              {(spentNotes.length > 0 || createdNotes.length > 0) && (
-                <div className="pt-2 border-t border-nyx-border">
-                  <p className="text-[10px] text-nyx-muted leading-relaxed mb-3">
-                    Nullifiers and commitments are ZK cryptographic values embedded in the pool contract calldata.
-                    They cannot be searched directly — verify them by inspecting the transaction above.
-                  </p>
+                  {invoice.payment?.txHash && (
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-0.5">Transaction Hash</p>
+                      <p className="font-mono text-nyx-success text-xs break-all">{invoice.payment.txHash}</p>
+                    </div>
+                  )}
 
-                  {spentNotes.length > 0 && (
-                    <div className="mb-2">
-                      <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Nullified Notes ({spentNotes.length})</p>
-                      <div className="space-y-1.5">
-                        {spentNotes.map((n) => (
-                          <div key={n.nullifier} className="bg-nyx-hover rounded-md p-2.5 space-y-1 font-mono text-[10px]">
-                            <div className="flex gap-2">
-                              <span className="text-nyx-muted w-20 flex-shrink-0">nullifier</span>
-                              <span className="text-nyx-text break-all">{n.nullifier}</span>
-                            </div>
-                            <div className="flex gap-2">
-                              <span className="text-nyx-muted w-20 flex-shrink-0">commitment</span>
-                              <span className="text-nyx-muted break-all">{n.commitment}</span>
-                            </div>
-                            <div className="flex gap-2">
-                              <span className="text-nyx-muted w-20 flex-shrink-0">value</span>
-                              <span className="text-nyx-text">{n.value.toString()}</span>
-                            </div>
+                  {invoice.payment?.relayId && (
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-0.5">Relay ID</p>
+                      <p className="font-mono text-nyx-muted text-xs break-all">{invoice.payment.relayId}</p>
+                    </div>
+                  )}
+
+                  {proofEntry && (
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">ZK Transfer Record</p>
+                      <div className="bg-nyx-hover rounded-md p-3 space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-nyx-text font-medium">{proofEntry.kind}</span>
+                          <span className={`ml-auto text-[10px] font-semibold uppercase px-2 py-0.5 rounded ${proofEntry.status === 'confirmed' ? 'bg-[rgba(34,197,94,0.12)] text-nyx-success' : 'bg-nyx-hover text-nyx-muted'}`}>
+                            {proofEntry.status}
+                          </span>
+                        </div>
+                        {proofEntry.timestamp && (
+                          <p className="text-nyx-muted text-xs">{new Date(proofEntry.timestamp).toLocaleString()}</p>
+                        )}
+                        {proofEntry.amounts.map(({ token, delta }) => (
+                          <div key={token} className="flex items-center gap-2 text-xs font-mono">
+                            <span className="text-nyx-muted truncate">{token.slice(0, 10)}…</span>
+                            <span className={delta.startsWith('-') ? 'text-nyx-danger' : 'text-nyx-success'}>{delta}</span>
                           </div>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  {createdNotes.length > 0 && (
-                    <div>
-                      <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Output Notes ({createdNotes.length})</p>
-                      <div className="space-y-1.5">
-                        {createdNotes.map((n) => (
-                          <div key={n.commitment} className="bg-nyx-hover rounded-md p-2.5 space-y-1 font-mono text-[10px]">
-                            <div className="flex gap-2">
-                              <span className="text-nyx-muted w-20 flex-shrink-0">commitment</span>
-                              <span className="text-nyx-text break-all">{n.commitment}</span>
-                            </div>
-                            <div className="flex gap-2">
-                              <span className="text-nyx-muted w-20 flex-shrink-0">value</span>
-                              <span className="text-nyx-text">{n.value.toString()}</span>
-                            </div>
-                            <div className="flex gap-2">
-                              <span className="text-nyx-muted w-20 flex-shrink-0">leaf index</span>
-                              <span className="text-nyx-muted">{n.index}</span>
-                            </div>
+                  {(spentNotes.length > 0 || createdNotes.length > 0) && (
+                    <div className="pt-2 border-t border-nyx-border">
+                      <p className="text-[10px] text-nyx-muted leading-relaxed mb-3">
+                        Nullifiers and commitments are ZK cryptographic values embedded in the pool contract calldata.
+                        They cannot be searched directly - verify them by inspecting the transaction above.
+                      </p>
+
+                      {spentNotes.length > 0 && (
+                        <div className="mb-2">
+                          <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Nullified Notes ({spentNotes.length})</p>
+                          <div className="space-y-1.5">
+                            {spentNotes.map((n) => (
+                              <div key={n.nullifier} className="bg-nyx-hover rounded-md p-2.5 space-y-1 font-mono text-[10px]">
+                                <div className="flex gap-2">
+                                  <span className="text-nyx-muted w-20 flex-shrink-0">nullifier</span>
+                                  <span className="text-nyx-text break-all">{n.nullifier}</span>
+                                </div>
+                                <div className="flex gap-2">
+                                  <span className="text-nyx-muted w-20 flex-shrink-0">commitment</span>
+                                  <span className="text-nyx-muted break-all">{n.commitment}</span>
+                                </div>
+                                <div className="flex gap-2">
+                                  <span className="text-nyx-muted w-20 flex-shrink-0">value</span>
+                                  <span className="text-nyx-text">{n.value.toString()}</span>
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      )}
+
+                      {createdNotes.length > 0 && (
+                        <div>
+                          <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Output Notes ({createdNotes.length})</p>
+                          <div className="space-y-1.5">
+                            {createdNotes.map((n) => (
+                              <div key={n.commitment} className="bg-nyx-hover rounded-md p-2.5 space-y-1 font-mono text-[10px]">
+                                <div className="flex gap-2">
+                                  <span className="text-nyx-muted w-20 flex-shrink-0">commitment</span>
+                                  <span className="text-nyx-text break-all">{n.commitment}</span>
+                                </div>
+                                <div className="flex gap-2">
+                                  <span className="text-nyx-muted w-20 flex-shrink-0">value</span>
+                                  <span className="text-nyx-text">{n.value.toString()}</span>
+                                </div>
+                                <div className="flex gap-2">
+                                  <span className="text-nyx-muted w-20 flex-shrink-0">leaf index</span>
+                                  <span className="text-nyx-muted">{n.index}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -655,6 +693,49 @@ export default function InvoiceDetail() {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {showQrModal && isIssuer && (
+        <div
+          className="fixed inset-0 z-50 bg-[rgba(2,6,23,0.75)] backdrop-blur-sm flex items-center justify-center px-4"
+          onClick={() => setShowQrModal(false)}
+        >
+          <div
+            className="nyx-card w-full max-w-sm p-5 animate-[fadeIn_220ms_ease-out]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Payment QR Code</p>
+                <p className="text-sm text-nyx-text">Scan to open payment page</p>
+              </div>
+              <button
+                type="button"
+                className="btn-ghost text-nyx-muted hover:text-nyx-text p-1"
+                onClick={() => setShowQrModal(false)}
+                aria-label="Close QR code"
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <div className="rounded-lg border border-nyx-border bg-nyx-hover p-3 flex items-center justify-center">
+              <img
+                src={payQrUrl(invoice)}
+                alt="Payment QR"
+                className="h-64 w-64 rounded-md"
+              />
+            </div>
+            <a
+              href={payPath(invoice)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex items-center gap-1.5 text-xs text-nyx-accent underline break-all"
+            >
+              <ExternalLink size={12} />
+              {payUrl(invoice)}
+            </a>
+          </div>
         </div>
       )}
 

@@ -463,7 +463,10 @@ export default function PayInvoice() {
       <main className="fixed inset-0 flex items-center justify-center">
         <div className="text-nyx-muted text-sm inline-flex items-center gap-2">
           <Loader2 size={14} className="animate-spin text-nyx-accent" />
-          {`Loading Payment Page${dots}`}
+          <span>
+            Loading payment page
+            <span className="inline-block min-w-[1.5em] text-left">{dots}</span>
+          </span>
         </div>
       </main>
     )
@@ -638,10 +641,10 @@ export default function PayInvoice() {
         {(confirmedTxHash || receiptBlob) && (
           <div className="space-y-3">
             {confirmedTxHash && (
-              <div className="text-sm text-nyx-success inline-flex items-center gap-2 break-all">
+              <div className="text-sm text-nyx-muted flex items-center gap-2 break-all">
                 <span>Payment confirmed</span>
                 <a
-                  className="inline-flex items-center gap-1.5 underline"
+                  className="inline-flex items-center gap-1.5 underline text-nyx-success"
                   href={explorerUrl(confirmedTxHash)}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -654,11 +657,11 @@ export default function PayInvoice() {
 
             {receiptBlob && (
               <button
-                className="btn-secondary"
+                className="btn-secondary inline-flex w-max whitespace-nowrap"
                 onClick={() => downloadPdf(receiptBlob, `NYX-Receipt-${invoice.invoiceId}.pdf`)}
               >
                 <Download size={13} />
-                Download Receipt
+                <span className="whitespace-nowrap">Download Receipt</span>
               </button>
             )}
           </div>
