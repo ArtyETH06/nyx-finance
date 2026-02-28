@@ -1,18 +1,26 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Loader2, X } from 'lucide-react'
 import FiatStepBuy from './FiatStepBuy'
 import FiatStepWallet from './FiatStepWallet'
 import FiatStepPayment from './FiatStepPayment'
-import FiatStepSuccess from './FiatStepSuccess'
+import { sendMockAlchemyPayment } from '../../lib/mockAlchemyTransfer'
 
 type FiatCurrency = 'USD' | 'EUR'
 type FiatToken = 'MON' | 'USDCm' | 'USDT' | 'UNLKm'
 type PaymentMethod = 'card' | 'google-pay' | null
-type Step = 'buy' | 'wallet' | 'payment' | 'processing' | 'success'
+type Step = 'buy' | 'wallet' | 'payment' | 'processing'
 
 interface FiatModalProps {
   isOpen: boolean
   invoiceAmount: number
+  invoiceTokenSymbol: string
+  depositAddress?: string | null
+  onSimulatedFunding?: (payload: {
+    destinationAddress: string
+    fundedToken: FiatToken
+    fundedAmount: string
+    fundingTxHash: string
+  }) => Promise<void>
   onClose: () => void
 }
 
@@ -22,41 +30,26 @@ function parsePositive(value: string): number {
   return parsed
 }
 
-function fmt(value: number, max = 4): string {
-  return value.toLocaleString('en-US', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: max,
-  })
-}
-
-function randomTxId(): string {
-  const alphabet = 'abcdef0123456789'
-  let out = '0x'
-  for (let i = 0; i < 64; i += 1) out += alphabet[Math.floor(Math.random() * alphabet.length)]
-  return out
-}
-
-const USD_TO_TOKEN_RATE: Record<FiatToken, number> = {
-  MON: 45,
-  USDCm: 1,
-  USDT: 1,
-  UNLKm: 2,
-}
-
-export default function FiatModal({ isOpen, invoiceAmount, onClose }: FiatModalProps) {
+export default function FiatModal({
+  isOpen,
+  invoiceAmount,
+  invoiceTokenSymbol,
+  depositAddress,
+  onSimulatedFunding,
+  onClose,
+}: FiatModalProps) {
   const [step, setStep] = useState<Step>('buy')
   const [amount, setAmount] = useState(invoiceAmount.toFixed(2))
   const [currency, setCurrency] = useState<FiatCurrency>('USD')
   const [token, setToken] = useState<FiatToken>('USDCm')
   const [walletAddress, setWalletAddress] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(null)
-  const [transactionId, setTransactionId] = useState('')
+  const [processingError, setProcessingError] = useState<string | null>(null)
 
-  const receiveAmount = useMemo(() => {
-    const pay = parsePositive(amount)
-    const usd = currency === 'USD' ? pay : pay * 1.1
-    return usd * USD_TO_TOKEN_RATE[token]
-  }, [amount, currency, token])
+  useEffect(() => {
+    if (!isOpen) return
+    if (depositAddress) setWalletAddress(depositAddress)
+  }, [isOpen, depositAddress])
 
   if (!isOpen) return null
 
@@ -65,18 +58,42 @@ export default function FiatModal({ isOpen, invoiceAmount, onClose }: FiatModalP
     setAmount(invoiceAmount.toFixed(2))
     setCurrency('USD')
     setToken('USDCm')
-    setWalletAddress('')
+    setWalletAddress(depositAddress ?? '')
     setPaymentMethod(null)
-    setTransactionId('')
+    setProcessingError(null)
     onClose()
   }
 
-  const handleFinalProceed = () => {
+  const handleFinalProceed = async () => {
     setStep('processing')
-    window.setTimeout(() => {
-      setTransactionId(randomTxId())
-      setStep('success')
-    }, 2000)
+    setProcessingError(null)
+    try {
+      const pay = parsePositive(amount)
+      if (!walletAddress.trim()) throw new Error('Missing destination wallet address')
+      if (pay <= 0) throw new Error('Invalid payment amount')
+      const result = await sendMockAlchemyPayment({
+        destinationAddress: walletAddress.trim(),
+        payAmount: pay,
+        currency,
+        token,
+      })
+      if (token !== invoiceTokenSymbol) {
+        throw new Error(`Auto-settlement requires ${invoiceTokenSymbol}. Please buy ${invoiceTokenSymbol} in this mock flow.`)
+      }
+      closeAndReset()
+      if (onSimulatedFunding) {
+        await onSimulatedFunding({
+          destinationAddress: walletAddress.trim(),
+          fundedToken: token,
+          fundedAmount: result.tokenAmount,
+          fundingTxHash: result.txHash,
+        })
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to simulate payment transfer'
+      setProcessingError(message)
+      setStep('payment')
+    }
   }
 
   return (
@@ -129,12 +146,19 @@ export default function FiatModal({ isOpen, invoiceAmount, onClose }: FiatModalP
         )}
 
         {step === 'payment' && (
-          <FiatStepPayment
-            paymentMethod={paymentMethod}
-            onSelectPaymentMethod={setPaymentMethod}
-            onBack={() => setStep('wallet')}
-            onProceed={handleFinalProceed}
-          />
+          <div className="space-y-3">
+            <FiatStepPayment
+              paymentMethod={paymentMethod}
+              onSelectPaymentMethod={setPaymentMethod}
+              onBack={() => setStep('wallet')}
+              onProceed={() => { void handleFinalProceed() }}
+            />
+            {processingError && (
+              <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                {processingError}
+              </div>
+            )}
+          </div>
         )}
 
         {step === 'processing' && (
@@ -145,15 +169,6 @@ export default function FiatModal({ isOpen, invoiceAmount, onClose }: FiatModalP
           </div>
         )}
 
-        {step === 'success' && (
-          <FiatStepSuccess
-            purchasedAmountText={`${fmt(receiveAmount)} ${token}`}
-            token={token}
-            walletAddress={walletAddress}
-            transactionId={transactionId}
-            onClose={closeAndReset}
-          />
-        )}
       </div>
     </div>
   )

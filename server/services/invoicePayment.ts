@@ -2,8 +2,7 @@ import { randomUUID } from 'crypto'
 import { db, receiptDb, toPublicInvoice, type InvoiceDoc, type ReceiptDoc } from '../db.js'
 import {
   buildDepositForPayer,
-  confirmDepositAndSendPrivately,
-  getTemporaryZkAddress,
+  confirmDirectDeposit,
   toBaseUnits,
 } from './unlinkSettlement.js'
 
@@ -26,6 +25,16 @@ export function isLikelyEvmAddress(value: string): boolean {
 
 function nowIso(): string {
   return new Date().toISOString()
+}
+
+function isLikelyEvmContractAddress(value?: string): boolean {
+  if (!value) return false
+  return /^0x[a-fA-F0-9]{40}$/.test(value)
+}
+
+function isLikelyHexCalldata(value?: string): boolean {
+  if (!value) return false
+  return /^0x[0-9a-fA-F]+$/.test(value) && value.length > 2
 }
 
 function activeLock(lock?: InvoiceDoc['paymentLock']): PaymentLock | null {
@@ -54,11 +63,16 @@ export async function startInvoicePayment(id: string, payerAddress: string) {
 
   const lock = activeLock(invoice.paymentLock)
   if (lock) {
-    if (lock.payerAddress.toLowerCase() === payerAddress.toLowerCase() && lock.depositRelayId && lock.depositTo && lock.depositCalldata) {
+    const reusable =
+      lock.payerAddress.toLowerCase() === payerAddress.toLowerCase() &&
+      !!lock.depositRelayId &&
+      isLikelyEvmContractAddress(lock.depositTo) &&
+      isLikelyHexCalldata(lock.depositCalldata)
+    if (reusable) {
       return {
         invoice: toPublicInvoice(invoice),
         lockId: lock.lockId,
-        temporaryZkAddress: lock.temporaryZkAddress,
+        temporaryZkAddress: invoice.issuerAddress,
         deposit: {
           relayId: lock.depositRelayId,
           to: lock.depositTo,
@@ -67,7 +81,12 @@ export async function startInvoicePayment(id: string, payerAddress: string) {
         },
       }
     }
-    throw new PaymentFlowError(409, 'Invoice payment is already in progress')
+    // Clear stale/invalid lock payload so a fresh deposit request can be generated.
+    if (lock.payerAddress.toLowerCase() === payerAddress.toLowerCase()) {
+      await db.patchById(id, { paymentLock: null })
+    } else {
+      throw new PaymentFlowError(409, 'Invoice payment is already in progress')
+    }
   }
 
   const createdAt = nowIso()
@@ -86,12 +105,11 @@ export async function startInvoicePayment(id: string, payerAddress: string) {
   let updated: InvoiceDoc | null = null
   try {
     const amount = toBaseUnits(locked.amount, 18)
-    const temporary = await getTemporaryZkAddress()
     const deposit = await buildDepositForPayer({
       depositor: payerAddress,
       token: locked.tokenAddress,
       amount,
-      temporaryAccountIndex: temporary.index,
+      recipientZkAddress: locked.issuerAddress,
     })
 
     updated = await db.patchById(id, {
@@ -101,8 +119,7 @@ export async function startInvoicePayment(id: string, payerAddress: string) {
         depositTo: deposit.to,
         depositCalldata: deposit.calldata,
         depositValue: deposit.value.toString(),
-        temporaryZkAddress: temporary.address,
-        temporaryAccountIndex: temporary.index,
+        temporaryZkAddress: locked.issuerAddress,
       },
     })
     if (!updated) throw new PaymentFlowError(500, 'Failed to persist payment lock')
@@ -114,7 +131,7 @@ export async function startInvoicePayment(id: string, payerAddress: string) {
   return {
     invoice: toPublicInvoice(updated),
     lockId,
-    temporaryZkAddress: updated.paymentLock?.temporaryZkAddress,
+    temporaryZkAddress: updated.issuerAddress,
     deposit: {
       relayId: updated.paymentLock?.depositRelayId,
       to: updated.paymentLock?.depositTo,
@@ -147,18 +164,9 @@ export async function confirmInvoicePayment(
   if (!lock.depositRelayId) {
     throw new PaymentFlowError(409, 'Deposit relay is missing for this payment lock')
   }
-  if (typeof lock.temporaryAccountIndex !== 'number') {
-    throw new PaymentFlowError(409, 'Temporary settlement account is missing')
-  }
 
-  const amount = toBaseUnits(invoice.amount, 18)
-  const settlement = await confirmDepositAndSendPrivately({
+  const settlement = await confirmDirectDeposit({
     depositRelayId: lock.depositRelayId,
-    token: invoice.tokenAddress,
-    amount,
-    recipientZkAddress: invoice.issuerAddress,
-    temporaryAccountIndex: lock.temporaryAccountIndex,
-    depositTxHash: payload.depositTxHash,
   })
 
   const paidAt = nowIso()

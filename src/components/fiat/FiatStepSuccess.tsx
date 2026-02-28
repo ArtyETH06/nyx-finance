@@ -2,6 +2,7 @@ interface FiatStepSuccessProps {
   purchasedAmountText: string
   token: string
   walletAddress: string
+  sourceWalletAddress?: string | null
   transactionId: string
   onClose: () => void
 }
@@ -10,6 +11,7 @@ export default function FiatStepSuccess({
   purchasedAmountText,
   token,
   walletAddress,
+  sourceWalletAddress,
   transactionId,
   onClose,
 }: FiatStepSuccessProps) {
@@ -35,6 +37,12 @@ export default function FiatStepSuccess({
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Destination Wallet</p>
           <p className="text-slate-800 break-all">{walletAddress}</p>
         </div>
+        {sourceWalletAddress && (
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Source Wallet</p>
+            <p className="text-slate-800 break-all">{sourceWalletAddress}</p>
+          </div>
+        )}
         <div>
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Mock Transaction ID</p>
           <p className="text-slate-800 break-all">{transactionId}</p>

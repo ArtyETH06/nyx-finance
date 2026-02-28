@@ -1,4 +1,4 @@
-import { Unlink, createMemoryStorage } from '@unlink-xyz/core'
+import { Unlink, parseZkAddress, createMemoryStorage } from '@unlink-xyz/core'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -48,6 +48,11 @@ function writeLocalMnemonic(value: string) {
   } catch {
     // non-fatal; runtime can still proceed in-memory
   }
+}
+
+function isLikelyHexCalldata(value?: string): boolean {
+  if (!value) return false
+  return /^0x[0-9a-fA-F]+$/.test(value) && value.length > 2
 }
 
 async function waitForRelaySuccess(unlink: Unlink, relayId: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<RelayStatus> {
@@ -122,35 +127,36 @@ export async function buildDepositForPayer(params: {
   depositor: string
   token: string
   amount: bigint
-  temporaryAccountIndex?: number
+  recipientZkAddress?: string
 }) {
   const unlink = await getSettlementUnlink()
-  const accountIndex = params.temporaryAccountIndex ?? (await unlink.accounts.list()).length
-  const existing = await unlink.accounts.get(accountIndex)
-  const temporaryAccount = existing ?? await unlink.accounts.create(accountIndex)
-
-  await unlink.accounts.setActive(accountIndex)
-  return unlink.deposit({
+  let accountOverride: any = undefined
+  if (params.recipientZkAddress) {
+    const parsed = parseZkAddress(params.recipientZkAddress)
+    // Deposit API accepts account override; for direct recipient deposit we only
+    // need public identity fields from recipient address.
+    accountOverride = {
+      address: params.recipientZkAddress,
+      masterPublicKey: parsed.masterPublicKey,
+      nullifyingKey: 1n,
+      viewingKeyPair: { privateKey: new Uint8Array(32), pubkey: parsed.viewingPublicKey },
+    }
+  }
+  const result = await unlink.deposit({
     depositor: params.depositor,
     deposits: [{ token: params.token, amount: params.amount }],
-    account: temporaryAccount,
+    account: accountOverride,
   })
+  if (!result.to || !isLikelyHexCalldata(result.calldata)) {
+    throw new Error('Failed to build valid deposit calldata for recipient account')
+  }
+  return result
 }
 
-export async function confirmDepositAndSendPrivately(params: {
+export async function confirmDirectDeposit(params: {
   depositRelayId: string
-  token: string
-  amount: bigint
-  recipientZkAddress: string
-  temporaryAccountIndex: number
-  depositTxHash?: string
 }) {
   const unlink = await getSettlementUnlink()
-  const existing = await unlink.accounts.get(params.temporaryAccountIndex)
-  if (!existing) {
-    await unlink.accounts.create(params.temporaryAccountIndex)
-  }
-  await unlink.accounts.setActive(params.temporaryAccountIndex)
 
   try {
     await waitForRelaySuccess(unlink, params.depositRelayId)
@@ -159,33 +165,9 @@ export async function confirmDepositAndSendPrivately(params: {
     if (!isRelayNotFoundError(err)) throw err
     await unlink.sync({ forceFullResync: true })
   }
-  await unlink.accounts.setActive(params.temporaryAccountIndex)
-
-  for (let i = 0; i < 8; i += 1) {
-    const bal = await unlink.getBalance(params.token)
-    if (bal >= params.amount) break
-    await unlink.sync({ forceFullResync: i === 0 })
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
-  }
-
-  const sendResult = await unlink.send({
-    transfers: [{
-      token: params.token,
-      recipient: params.recipientZkAddress,
-      amount: params.amount,
-    }],
-  })
-
-  const sendStatus = await waitForRelaySuccess(unlink, sendResult.relayId)
+  const status = await unlink.getTxStatus(params.depositRelayId) as RelayStatus
   return {
-    relayId: sendResult.relayId,
-    txHash: sendStatus.txHash,
+    relayId: params.depositRelayId,
+    txHash: status.txHash,
   }
-}
-
-export async function getTemporaryZkAddress(accountIndex?: number): Promise<{ index: number; address: string }> {
-  const unlink = await getSettlementUnlink()
-  const index = accountIndex ?? (await unlink.accounts.list()).length
-  const account = await unlink.accounts.create(index)
-  return { index, address: account.address }
 }
