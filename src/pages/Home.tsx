@@ -1,4 +1,4 @@
-import { ArrowRight, Building2, FileText, type LucideIcon } from 'lucide-react'
+import { Building2, FileText, type LucideIcon } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 function ServiceCard({
@@ -31,16 +31,15 @@ export default function Home() {
         </h1>
         <p className="text-nyx-muted text-sm md:text-base max-w-3xl leading-relaxed">
           NYX is one privacy-first financial product with two connected workflows: invoicing and organization operations.
-          You get unified private coordination with verifiable public-chain proof when it matters.
+          It helps teams operate with financial privacy, clearer accountability, and better control over how business relationships are exposed.
         </p>
 
         <div className="mt-5 flex flex-wrap gap-3">
           <Link to="/invoices" className="btn-primary" style={{ width: 'auto', padding: '9px 16px' }}>
             Open Invoices
-            <ArrowRight size={14} strokeWidth={1.5} />
           </Link>
-          <Link to="/wallet" className="btn-secondary" style={{ width: 'auto', padding: '9px 16px' }}>
-            Open Wallet
+          <Link to="/organization" className="btn-secondary" style={{ width: 'auto', padding: '9px 16px' }}>
+            Open Organization
           </Link>
           <Link to="/profile" className="btn-secondary" style={{ width: 'auto', padding: '9px 16px' }}>
             Open Profile
@@ -51,18 +50,18 @@ export default function Home() {
       <section>
         <div className="mb-4">
           <h2 className="text-xl font-semibold text-nyx-text tracking-tight">One Product, Two Workflows</h2>
-          <p className="text-nyx-muted text-sm mt-1">Start with invoices, scale to team and treasury coordination inside the same NYX layer.</p>
+          <p className="text-nyx-muted text-sm mt-1">Use the same platform to handle external payments and internal coordination without splitting your finance stack.</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <ServiceCard
             icon={FileText}
             title="Private Invoicing"
-            description="Create, review, and settle invoices privately while keeping PDF and payment proof attached for verification."
+            description="Run client and contractor payments with more privacy, faster agreement cycles, and better confidence around who owes what."
           />
           <ServiceCard
             icon={Building2}
             title="Organization Management"
-            description="Extend the same NYX flow to teams: structure organizations, coordinate members, and manage internal operations privately."
+            description="Coordinate teams, responsibilities, and internal financial operations in one place so your organization can scale without financial noise."
           />
         </div>
       </section>
