@@ -59,7 +59,13 @@ export default function Teams() {
         body: JSON.stringify({
           name: orgName.trim(),
           ownerAddress: address,
-          members: [{ address, role: 'admin', ...loadProfile(address), joinedAt: new Date().toISOString() }],
+          members: [{
+            address,
+            role: 'admin',
+            firstName: loadProfile(address).firstName || undefined,
+            lastName:  loadProfile(address).lastName  || undefined,
+            joinedAt:  new Date().toISOString(),
+          }],
         }),
       })
       if (!res.ok) {

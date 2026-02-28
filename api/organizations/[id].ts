@@ -1,4 +1,4 @@
-import { orgDb, toPublicOrg, type OrgMemberRole } from '../../server/db.js'
+import { orgDb, toPublicOrg, type OrgMemberRole, type SalarySchedule } from '../../server/db.js'
 
 function setNoStore(res: any) {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
@@ -40,8 +40,33 @@ export default async function handler(req: any, res: any) {
 
   if (req.method === 'PATCH' || req.method === 'POST') {
     try {
-      const { address, role, firstName, lastName, companyRole } = req.body ?? {}
+      const { action } = req.body ?? {}
 
+      // — Update salary for existing member —
+      if (action === 'updateSalary') {
+        const { memberAddress, salary, salaryCurrency, salarySchedule } = req.body ?? {}
+        if (!memberAddress || typeof memberAddress !== 'string') {
+          res.status(400).json({ error: 'memberAddress is required' })
+          return
+        }
+        const validSchedules: SalarySchedule[] = ['weekly', 'biweekly', 'monthly']
+        const patch: Parameters<typeof orgDb.updateMember>[2] = {}
+        if (salary !== undefined) patch.salary = Number(salary)
+        if (salaryCurrency !== undefined) patch.salaryCurrency = String(salaryCurrency)
+        if (salarySchedule !== undefined && validSchedules.includes(salarySchedule)) {
+          patch.salarySchedule = salarySchedule as SalarySchedule
+        }
+        const doc = await orgDb.updateMember(id, memberAddress.trim(), patch)
+        if (!doc) {
+          res.status(404).json({ error: 'Organization or member not found' })
+          return
+        }
+        res.status(200).json({ ok: true, organization: toPublicOrg(doc) })
+        return
+      }
+
+      // — Add a new member —
+      const { address, role, firstName, lastName, companyRole } = req.body ?? {}
       if (!address || typeof address !== 'string' || !address.trim()) {
         res.status(400).json({ error: 'address is required' })
         return
@@ -50,7 +75,6 @@ export default async function handler(req: any, res: any) {
         res.status(400).json({ error: 'role must be admin or member' })
         return
       }
-
       const member = {
         address: address.trim(),
         role: role as OrgMemberRole,
@@ -59,7 +83,6 @@ export default async function handler(req: any, res: any) {
         companyRole: typeof companyRole === 'string' && companyRole.trim() ? companyRole.trim() : undefined,
         joinedAt: new Date().toISOString(),
       }
-
       const doc = await orgDb.addMember(id, member)
       if (!doc) {
         res.status(404).json({ error: 'Organization not found' })

@@ -6,12 +6,17 @@ import { MongoClient, ObjectId, type Filter } from 'mongodb'
 export type InvoiceStatus = 'sent' | 'accepted' | 'rejected' | 'paid'
 export type OrgMemberRole = 'admin' | 'member'
 
+export type SalarySchedule = 'weekly' | 'biweekly' | 'monthly'
+
 export interface OrgMember {
   address: string
   role: OrgMemberRole
   firstName?: string
   lastName?: string
   companyRole?: string
+  salary?: number
+  salaryCurrency?: string
+  salarySchedule?: SalarySchedule
   joinedAt: string
 }
 
@@ -255,6 +260,38 @@ export const orgDb = {
     data[idx] = { ...data[idx], members: [...data[idx].members, member] }
     writeAllOrgFile(data)
     return data[idx]
+  },
+
+  async updateMember(
+    id: string,
+    memberAddress: string,
+    patch: Partial<Pick<OrgMember, 'salary' | 'salaryCurrency' | 'salarySchedule' | 'firstName' | 'lastName' | 'companyRole' | 'role'>>,
+  ): Promise<OrganizationDoc | null> {
+    const col = await getOrgCollection()
+    if (col) {
+      // Find org first to get concrete _id for positional operator
+      const org = await col.findOne(orgIdFilter(id))
+      if (!org) return null
+      const fields: Record<string, unknown> = {}
+      for (const [k, v] of Object.entries(patch)) {
+        if (v !== undefined) fields[`members.$.${k}`] = v
+      }
+      if (Object.keys(fields).length > 0) {
+        await col.updateOne(
+          { _id: org._id, 'members.address': memberAddress },
+          { $set: fields },
+        )
+      }
+      return col.findOne({ _id: org._id })
+    }
+    const data = readAllOrgFile()
+    const orgIdx = data.findIndex((d) => byOrgId(d, id))
+    if (orgIdx === -1) return null
+    const mIdx = data[orgIdx].members.findIndex((m) => m.address === memberAddress)
+    if (mIdx === -1) return null
+    data[orgIdx].members[mIdx] = { ...data[orgIdx].members[mIdx], ...patch }
+    writeAllOrgFile(data)
+    return data[orgIdx]
   },
 }
 

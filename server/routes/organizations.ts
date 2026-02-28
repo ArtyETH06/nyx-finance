@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express'
-import { orgDb, toPublicOrg, type OrgMemberRole } from '../db.js'
+import { orgDb, toPublicOrg, type OrgMemberRole, type SalarySchedule } from '../db.js'
 
 export const organizationsRouter = Router()
 
@@ -77,12 +77,37 @@ organizationsRouter.get('/organizations/:id', async (req: Request, res: Response
   }
 })
 
-// PATCH /api/organizations/:id — add a member
+// PATCH /api/organizations/:id — add member OR update member salary
 organizationsRouter.patch('/organizations/:id', async (req: Request, res: Response) => {
   try {
     setNoStore(res)
-    const { address, role, firstName, lastName, companyRole } = req.body ?? {}
+    const { action } = req.body ?? {}
 
+    // — Update salary for an existing member —
+    if (action === 'updateSalary') {
+      const { memberAddress, salary, salaryCurrency, salarySchedule } = req.body ?? {}
+      if (!memberAddress || typeof memberAddress !== 'string') {
+        res.status(400).json({ error: 'memberAddress is required' })
+        return
+      }
+      const validSchedules: SalarySchedule[] = ['weekly', 'biweekly', 'monthly']
+      const patch: Parameters<typeof orgDb.updateMember>[2] = {}
+      if (salary !== undefined) patch.salary = Number(salary)
+      if (salaryCurrency !== undefined) patch.salaryCurrency = String(salaryCurrency)
+      if (salarySchedule !== undefined && validSchedules.includes(salarySchedule)) {
+        patch.salarySchedule = salarySchedule as SalarySchedule
+      }
+      const doc = await orgDb.updateMember(req.params.id, normalizeAddress(memberAddress), patch)
+      if (!doc) {
+        res.status(404).json({ error: 'Organization or member not found' })
+        return
+      }
+      res.json({ ok: true, organization: toPublicOrg(doc) })
+      return
+    }
+
+    // — Add a new member —
+    const { address, role, firstName, lastName, companyRole } = req.body ?? {}
     if (!address || typeof address !== 'string' || !address.trim()) {
       res.status(400).json({ error: 'address is required' })
       return
@@ -91,7 +116,6 @@ organizationsRouter.patch('/organizations/:id', async (req: Request, res: Respon
       res.status(400).json({ error: 'role must be admin or member' })
       return
     }
-
     const member = {
       address: normalizeAddress(address),
       role: role as OrgMemberRole,
@@ -100,7 +124,6 @@ organizationsRouter.patch('/organizations/:id', async (req: Request, res: Respon
       companyRole: typeof companyRole === 'string' && companyRole.trim() ? companyRole.trim() : undefined,
       joinedAt: new Date().toISOString(),
     }
-
     const doc = await orgDb.addMember(req.params.id, member)
     if (!doc) {
       res.status(404).json({ error: 'Organization not found' })
