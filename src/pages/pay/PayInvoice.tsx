@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Download, ExternalLink, Loader2 } from 'lucide-react'
+import { Check, Download, ExternalLink, Loader2 } from 'lucide-react'
 import { JsonRpcProvider, Wallet, parseUnits } from 'ethers'
 import type { Invoice } from '../../lib/invoices'
 import { normalizeInvoiceRecord } from '../../lib/invoices'
@@ -60,6 +60,26 @@ function normalizeError(err: unknown): string {
   if (err instanceof Error) return err.message
   if (typeof err === 'string') return err
   return 'Payment failed'
+}
+
+async function retryTx<T>(label: string, fn: () => Promise<T>, retries = 2, delayMs = 1200): Promise<T> {
+  let lastError: unknown
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn()
+    } catch (error) {
+      lastError = error
+      if (attempt < retries) {
+        console.log('retrying tx...', {
+          label,
+          attempt: attempt + 1,
+          error: error instanceof Error ? error.message : String(error),
+        })
+        await new Promise((resolve) => setTimeout(resolve, delayMs))
+      }
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Transaction failed')
 }
 
 async function waitForOnchainConfirmation(ethereum: EthereumProvider, txHash: string, timeoutMs = 180000) {
@@ -205,13 +225,17 @@ export default function PayInvoice() {
         calldataBytes: (depositCalldata.length - 2) / 2,
         gasLimit: gasLimit.toString(),
       })
-      const depositTx = await signer.sendTransaction({
-        to: txRequest.to,
-        data: txRequest.data,
-        value: txRequest.value,
-        gasLimit,
+      const depositTx = await retryTx('alchemy-auto-deposit', () =>
+        signer.sendTransaction({
+          to: txRequest.to,
+          data: txRequest.data,
+          value: txRequest.value,
+          gasLimit,
+        })
+      )
+      await retryTx('alchemy-auto-deposit-confirmation', async () => {
+        await depositTx.wait(1)
       })
-      await depositTx.wait(1)
 
       setStatusText('Confirming deposit settlement...')
       const confirmRes = await fetch(`/api/contracts/${id}/pay/confirm`, {
@@ -644,9 +668,22 @@ export default function PayInvoice() {
         </div>
 
         {statusText && !confirmedTxHash && (
-          <div className={`text-sm inline-flex items-center gap-2 ${statusTone === 'success' ? 'text-nyx-success' : 'text-nyx-muted'}`}>
-            {processing && <Loader2 size={14} className="animate-spin text-nyx-accent" />}
-            <span>{statusText}</span>
+          <div
+            className={[
+              'text-sm inline-flex items-center gap-2 rounded-md px-2.5 py-1.5',
+              statusTone === 'success'
+                ? 'bg-[rgba(34,197,94,0.12)] text-nyx-success'
+                : 'text-nyx-muted',
+            ].join(' ')}
+          >
+            {statusTone === 'success' ? (
+              <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-nyx-success text-white">
+                <Check size={11} strokeWidth={2.5} />
+              </span>
+            ) : (
+              processing && <Loader2 size={14} className="animate-spin text-nyx-accent" />
+            )}
+            <span>{statusTone === 'success' ? `${statusText} confirmed` : statusText}</span>
           </div>
         )}
 
@@ -693,7 +730,7 @@ export default function PayInvoice() {
           }
           try {
             setStatusTone('success')
-            setStatusText('AlchemyPay transfer confirmed.')
+            setStatusText('AlchemyPay transfer')
             await new Promise((resolve) => setTimeout(resolve, 2000))
             setStatusTone('muted')
             await autoSettleFromFiatFunding()
