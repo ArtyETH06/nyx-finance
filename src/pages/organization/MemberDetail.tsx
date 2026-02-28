@@ -454,6 +454,28 @@ export default function MemberDetail() {
         )}
       </div>
 
+      {/* ── Quick Actions ── */}
+      {canManage && memberAddress && (
+        <div className="flex gap-3 mb-4">
+          <button
+            onClick={() => {
+              const params = new URLSearchParams()
+              params.set('payerAddress', memberAddress)
+              if (member.firstName)        params.set('payerFirstName', member.firstName)
+              if (member.lastName)         params.set('payerLastName',  member.lastName)
+              if (member.companyRole)      params.set('payerCompany',   member.companyRole)
+              if (member.salary)           params.set('amount',         String(member.salary))
+              if (member.salaryCurrency)   params.set('currency',       member.salaryCurrency)
+              if (member.salarySchedule)   params.set('schedule',       member.salarySchedule)
+              navigate(`/invoices/create?${params.toString()}`)
+            }}
+            className="btn-secondary flex-1"
+          >
+            Create Invoice
+          </button>
+        </div>
+      )}
+
       {/* ── Payroll Actions (admins only, with salary set) ── */}
       {canManage && hasSalary && (
         <div className="nyx-card p-6 mb-4">

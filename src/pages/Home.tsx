@@ -27,11 +27,10 @@ export default function Home() {
       <section className="nyx-card p-6 md:p-7">
         <p className="text-[10px] uppercase tracking-[0.22em] text-nyx-muted mb-3">NYX Platform</p>
         <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-nyx-text mb-4">
-          Private business operations on public blockchain rails.
+          Operate privately on public blockchain.
         </h1>
         <p className="text-nyx-muted text-sm md:text-base max-w-3xl leading-relaxed">
-          NYX is one privacy-first financial product with two connected workflows: invoicing and organization operations.
-          It helps teams operate with financial privacy, clearer accountability, and better control over how business relationships are exposed.
+          NYX unifies private invoicing and organization finance into one confidential infrastructure.
         </p>
 
         <div className="mt-5 flex flex-wrap gap-3">
@@ -49,19 +48,19 @@ export default function Home() {
 
       <section>
         <div className="mb-4">
-          <h2 className="text-xl font-semibold text-nyx-text tracking-tight">One Product, Two Workflows</h2>
-          <p className="text-nyx-muted text-sm mt-1">Use the same platform to handle external payments and internal coordination without splitting your finance stack.</p>
+          <h2 className="text-xl font-semibold text-nyx-text tracking-tight">One product. Two financial layers.</h2>
+          <p className="text-nyx-muted text-sm mt-1">Manage external contractors and internal teams without exposing your financial structure.</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <ServiceCard
             icon={FileText}
             title="Private Invoicing"
-            description="Run client and contractor payments with more privacy, faster agreement cycles, and better confidence around who owes what."
+            description="Issue, approve, and settle invoices without revealing amounts or counterparties."
           />
           <ServiceCard
             icon={Building2}
-            title="Organization Management"
-            description="Coordinate teams, responsibilities, and internal financial operations in one place so your organization can scale without financial noise."
+            title="Organization Finance"
+            description="Manage teams, payroll planning, and internal financial coordination in one private layer."
           />
         </div>
       </section>
