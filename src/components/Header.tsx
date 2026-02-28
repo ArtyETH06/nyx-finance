@@ -2,7 +2,12 @@ import { Link, NavLink } from 'react-router-dom'
 import AddressBox from './AddressBox'
 import nyxLogo from '../images/logo.png'
 
-export default function Header() {
+type HeaderProps = {
+  showNavigation?: boolean
+  showWallet?: boolean
+}
+
+export default function Header({ showNavigation = true, showWallet = true }: HeaderProps) {
   return (
     <header className="grid grid-cols-[1fr_auto_1fr] items-center px-6 py-4 bg-nyx-bg border-b border-[rgba(255,255,255,0.06)]">
       <div className="justify-self-start">
@@ -18,31 +23,35 @@ export default function Header() {
         </Link>
       </div>
 
-      <nav className="justify-self-center flex items-center gap-3">
-        {[
-          { to: '/invoices/create', label: 'Create Invoice' },
-          { to: '/invoices',      label: 'Invoices'      },
-        ].map(({ to, label }) => (
-          <NavLink
-            key={to}
-            to={to}
-            className={({ isActive }) =>
-              [
-                'relative px-3 py-1.5 text-sm transition-colors duration-150',
-                'after:absolute after:left-2 after:right-2 after:-bottom-1 after:h-0.5 after:rounded-full after:transition-opacity',
-                isActive
-                  ? 'text-nyx-text after:bg-nyx-accent after:opacity-100'
-                  : 'text-nyx-muted hover:text-nyx-text after:opacity-0',
-              ].join(' ')
-            }
-          >
-            {label}
-          </NavLink>
-        ))}
-      </nav>
+      <div className="justify-self-center">
+        {showNavigation && (
+          <nav className="flex items-center gap-3">
+            {[
+              { to: '/invoices/create', label: 'Create Invoice' },
+              { to: '/invoices', label: 'Invoices' },
+            ].map(({ to, label }) => (
+              <NavLink
+                key={to}
+                to={to}
+                className={({ isActive }) =>
+                  [
+                    'relative px-3 py-1.5 text-sm transition-colors duration-150',
+                    'after:absolute after:left-2 after:right-2 after:-bottom-1 after:h-0.5 after:rounded-full after:transition-opacity',
+                    isActive
+                      ? 'text-nyx-text after:bg-nyx-accent after:opacity-100'
+                      : 'text-nyx-muted hover:text-nyx-text after:opacity-0',
+                  ].join(' ')
+                }
+              >
+                {label}
+              </NavLink>
+            ))}
+          </nav>
+        )}
+      </div>
 
       <div className="justify-self-end">
-        <AddressBox />
+        {showWallet && <AddressBox />}
       </div>
     </header>
   )

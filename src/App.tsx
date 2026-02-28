@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { BrowserRouter, Link, Routes, Route, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { useUnlink } from '@unlink-xyz/react'
 import { Loader2 } from 'lucide-react'
 import Header from './components/Header'
@@ -14,7 +14,6 @@ import InvoiceDashboard from './pages/invoices/InvoiceDashboard'
 import CreateInvoice from './pages/invoices/CreateInvoice'
 import InvoiceDetail from './pages/invoices/InvoiceDetail'
 import PayInvoice from './pages/pay/PayInvoice'
-import nyxLogo from './images/logo.png'
 
 function FullscreenLoader({ label }: { label: string }) {
   return (
@@ -43,20 +42,7 @@ function AppInner() {
   if (isPublicRoute) {
     return (
       <div className="min-h-screen bg-nyx-bg flex flex-col">
-        <header className="px-6 py-4 bg-nyx-bg border-b border-[rgba(255,255,255,0.06)]">
-          <div className="justify-self-start">
-            <Link to="/" className="flex flex-col leading-tight group">
-              <img
-                src={nyxLogo}
-                alt="NYX"
-                className="h-9 w-auto object-contain mb-0.5 opacity-95 group-hover:opacity-100 transition-opacity duration-150"
-              />
-              <span className="text-[11px] text-nyx-muted tracking-wide">
-                Public blockchain. Private business.
-              </span>
-            </Link>
-          </div>
-        </header>
+        <Header showNavigation={false} showWallet={false} />
         <div className="flex-1 min-h-0">
           <Routes>
             <Route path="/pay/:id" element={<PayInvoice />} />
