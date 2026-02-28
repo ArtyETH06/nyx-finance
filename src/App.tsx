@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { useUnlink } from '@unlink-xyz/react'
+import { Loader2 } from 'lucide-react'
 import Header from './components/Header'
 import Footer from './components/Footer'
 import WalletPopup from './components/WalletPopup'
@@ -13,6 +14,17 @@ import InvoiceDashboard from './pages/invoices/InvoiceDashboard'
 import CreateInvoice from './pages/invoices/CreateInvoice'
 import InvoiceDetail from './pages/invoices/InvoiceDetail'
 
+function FullscreenLoader({ label }: { label: string }) {
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-nyx-bg">
+      <div className="flex items-center gap-3 text-nyx-muted text-sm tracking-wide">
+        <Loader2 size={18} className="animate-spin text-nyx-accent" />
+        <span>{label}</span>
+      </div>
+    </div>
+  )
+}
+
 function AppInner() {
   const { ready, walletExists, activeAccount, createAccount } = useUnlink()
 
@@ -23,11 +35,7 @@ function AppInner() {
   }, [ready, walletExists, activeAccount, createAccount])
 
   if (!ready) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-nyx-bg">
-        <div className="text-nyx-muted text-sm tracking-wide">Initializing...</div>
-      </div>
-    )
+    return <FullscreenLoader label="Initializing..." />
   }
 
   if (!walletExists) {
@@ -35,11 +43,7 @@ function AppInner() {
   }
 
   if (!activeAccount) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-nyx-bg">
-        <div className="text-nyx-muted text-sm tracking-wide">Setting up account...</div>
-      </div>
-    )
+    return <FullscreenLoader label="Setting up account..." />
   }
 
   return (
