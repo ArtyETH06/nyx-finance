@@ -1,0 +1,114 @@
+type FiatCurrency = 'USD' | 'EUR'
+type FiatToken = 'MON' | 'USDCm' | 'USDT' | 'UNLKm'
+
+type BuyState = {
+  amount: string
+  currency: FiatCurrency
+  token: FiatToken
+}
+
+interface FiatStepBuyProps {
+  state: BuyState
+  invoiceAmount: number
+  onChange: (patch: Partial<BuyState>) => void
+  onProceed: () => void
+}
+
+const USD_TO_TOKEN_RATE: Record<FiatToken, number> = {
+  MON: 45,
+  USDCm: 1,
+  USDT: 1,
+  UNLKm: 2,
+}
+
+function parsePositive(value: string): number {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0
+  return parsed
+}
+
+function fmt(value: number, max = 4): string {
+  return value.toLocaleString('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: max,
+  })
+}
+
+export default function FiatStepBuy({ state, invoiceAmount, onChange, onProceed }: FiatStepBuyProps) {
+  const payAmount = parsePositive(state.amount)
+  const usdAmount = state.currency === 'USD' ? payAmount : payAmount * 1.1
+  const receiveAmount = usdAmount * USD_TO_TOKEN_RATE[state.token]
+  const canProceed = payAmount > 0
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-3 text-sm">
+        <button className="rounded-full bg-blue-100 text-blue-700 px-3 py-1 font-semibold">Buy Crypto</button>
+        <button className="text-slate-500 px-2 py-1">Sell Crypto</button>
+        <button className="text-slate-500 px-2 py-1 inline-flex items-center gap-1">
+          Buy Stocks
+          <span className="rounded bg-emerald-100 text-emerald-700 text-[10px] px-1.5 py-0.5 font-semibold">NEW</span>
+        </button>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
+        <div>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">You Pay</p>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={state.amount}
+              onChange={(e) => onChange({ amount: e.target.value })}
+              className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder={invoiceAmount.toFixed(2)}
+            />
+            <select
+              value={state.currency}
+              onChange={(e) => onChange({ currency: e.target.value as FiatCurrency })}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">You Receive (estimate)</p>
+          <div className="flex gap-2">
+            <div className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800">
+              {fmt(receiveAmount)} {state.token}
+            </div>
+            <select
+              value={state.token}
+              onChange={(e) => onChange({ token: e.target.value as FiatToken })}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="MON">MON</option>
+              <option value="USDCm">USDCm</option>
+              <option value="USDT">USDT</option>
+              <option value="UNLKm">UNLKm</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-sm text-slate-600">
+          Your order: {fmt(receiveAmount)} {state.token} for {fmt(payAmount, 2)} {state.currency}
+        </div>
+
+        <button
+          type="button"
+          disabled={!canProceed}
+          onClick={onProceed}
+          className="w-full rounded-lg bg-blue-600 text-white py-2.5 font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
+        >
+          Proceed - Buy {state.token}
+        </button>
+      </div>
+
+      <p className="text-center text-xs text-slate-500">Powered by AlchemyPay Testnet</p>
+    </div>
+  )
+}

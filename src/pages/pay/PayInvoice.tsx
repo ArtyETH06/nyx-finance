@@ -6,6 +6,7 @@ import { normalizeInvoiceRecord } from '../../lib/invoices'
 import { buildPaymentReceiptPdf } from '../../lib/receiptPdf'
 import { downloadPdf, sha256Blob } from '../../lib/invoicePdf'
 import { getTokenByAddress, NATIVE_TOKEN_ADDRESS } from '../../lib/tokens'
+import FiatModal from '../../components/fiat/FiatModal'
 
 type EthereumProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<any>
@@ -70,6 +71,7 @@ export default function PayInvoice() {
   const [confirmedTxHash, setConfirmedTxHash] = useState<string | null>(null)
   const [receiptBlob, setReceiptBlob] = useState<Blob | null>(null)
   const [tokenBalanceText, setTokenBalanceText] = useState<string | null>(null)
+  const [fiatOpen, setFiatOpen] = useState(false)
 
   const ethereum = useMemo(() => {
     if (typeof window === 'undefined') return null
@@ -320,6 +322,13 @@ export default function PayInvoice() {
           >
             {processing ? 'Processing...' : `Pay ${fmtAmount(invoice.amount, invoice.tokenSymbol)}`}
           </button>
+          <button
+            onClick={() => setFiatOpen(true)}
+            disabled={processing || invoice.status !== 'sent'}
+            className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Pay with Card
+          </button>
         </div>
 
         {statusText && (
@@ -353,6 +362,11 @@ export default function PayInvoice() {
           </button>
         )}
       </div>
+      <FiatModal
+        isOpen={fiatOpen}
+        invoiceAmount={invoice.amount}
+        onClose={() => setFiatOpen(false)}
+      />
     </main>
   )
 }
