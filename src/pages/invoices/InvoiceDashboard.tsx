@@ -109,15 +109,6 @@ export default function InvoiceDashboard() {
     return () => window.clearInterval(timer)
   }, [loading])
 
-  useEffect(() => {
-    if (!loading) return
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = previousOverflow
-    }
-  }, [loading])
-
   return (
     <main className="px-8 py-10 max-w-4xl">
       <div className="flex items-center justify-between mb-8">
