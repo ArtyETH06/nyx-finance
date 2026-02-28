@@ -146,8 +146,6 @@ export async function confirmDepositAndSendPrivately(params: {
   depositTxHash?: string
 }) {
   const unlink = await getSettlementUnlink()
-  // In-memory storage may lose derived accounts across process restarts.
-  // Recreate the temporary account deterministically if it is missing.
   const existing = await unlink.accounts.get(params.temporaryAccountIndex)
   if (!existing) {
     await unlink.accounts.create(params.temporaryAccountIndex)
@@ -159,14 +157,11 @@ export async function confirmDepositAndSendPrivately(params: {
     await unlink.confirmDeposit(params.depositRelayId)
   } catch (err) {
     if (!isRelayNotFoundError(err)) throw err
-    // Fallback for environments where relay status is not discoverable:
-    // frontend already waited for on-chain tx receipt, so force a chain resync.
     await unlink.sync({ forceFullResync: true })
   }
   await unlink.accounts.setActive(params.temporaryAccountIndex)
 
-  // Ensure deposited notes are visible before planning the private send.
-  for (let i = 0; i < 5; i += 1) {
+  for (let i = 0; i < 8; i += 1) {
     const bal = await unlink.getBalance(params.token)
     if (bal >= params.amount) break
     await unlink.sync({ forceFullResync: i === 0 })

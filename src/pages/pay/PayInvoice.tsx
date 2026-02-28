@@ -318,7 +318,7 @@ export default function PayInvoice() {
             disabled={!canPay}
             className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {processing ? 'Processing...' : 'Pay Invoice'}
+            {processing ? 'Processing...' : `Pay ${fmtAmount(invoice.amount, invoice.tokenSymbol)}`}
           </button>
         </div>
 

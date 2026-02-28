@@ -20,8 +20,8 @@ export default function Header() {
 
       <nav className="justify-self-center flex items-center gap-3">
         {[
-          { to: '/invoices',      label: 'Invoices'      },
           { to: '/invoices/create', label: 'Create Invoice' },
+          { to: '/invoices',      label: 'Invoices'      },
         ].map(({ to, label }) => (
           <NavLink
             key={to}
