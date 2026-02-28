@@ -88,6 +88,8 @@ export default function PayInvoice() {
   const [payerAddress, setPayerAddress] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
   const [statusText, setStatusText] = useState<string | null>(null)
+  const [statusTone, setStatusTone] = useState<'muted' | 'success'>('muted')
+  const [processingDots, setProcessingDots] = useState(0)
   const [confirmedTxHash, setConfirmedTxHash] = useState<string | null>(null)
   const [receiptBlob, setReceiptBlob] = useState<Blob | null>(null)
   const [tokenBalanceText, setTokenBalanceText] = useState<string | null>(null)
@@ -140,6 +142,7 @@ export default function PayInvoice() {
     }
 
     setProcessing(true)
+    setStatusTone('muted')
     setError(null)
     try {
       const requiredAmount = parseUnits(invoice.amount.toFixed(18), 18)
@@ -250,7 +253,7 @@ export default function PayInvoice() {
         }),
       })
 
-      setStatusText('Payment confirmed')
+      setStatusText(null)
     } finally {
       setProcessing(false)
     }
@@ -284,6 +287,15 @@ export default function PayInvoice() {
     }, 350)
     return () => window.clearInterval(timer)
   }, [loading])
+
+  useEffect(() => {
+    if (!processing) return
+    setProcessingDots(0)
+    const timer = window.setInterval(() => {
+      setProcessingDots((prev) => (prev + 1) % 3)
+    }, 350)
+    return () => window.clearInterval(timer)
+  }, [processing])
 
   useEffect(() => {
     async function loadBalance() {
@@ -360,6 +372,7 @@ export default function PayInvoice() {
   async function handlePay() {
     if (!invoice || !id || !payerAddress || !ethereum) return
     setProcessing(true)
+    setStatusTone('muted')
     setError(null)
     setStatusText('Processing transaction...')
 
@@ -445,7 +458,7 @@ export default function PayInvoice() {
         }),
       })
 
-      setStatusText('Payment confirmed')
+      setStatusText(null)
       await new Promise((resolve) => setTimeout(resolve, 100))
       const accounts = await ethereum.request({ method: 'eth_accounts' }) as string[]
       if (accounts?.[0]) setPayerAddress(accounts[0])
@@ -484,8 +497,9 @@ export default function PayInvoice() {
 
   const isPayable = invoice.status === 'sent'
   const canExecuteMetamaskPay = isPayable && !!payerAddress && !processing
+  const processingLabel = `Processing${['.', '..', '...'][processingDots]}`
   const primaryButtonLabel = processing
-    ? 'Processing...'
+    ? processingLabel
     : paymentMethod === 'metamask'
       ? (payerAddress ? `Pay ${fmtAmount(invoice.amount, invoice.tokenSymbol)}` : 'Connect MetaMask')
       : `Pay ${fmtAmount(invoice.amount, invoice.tokenSymbol)}`
@@ -629,8 +643,8 @@ export default function PayInvoice() {
           </div>
         </div>
 
-        {statusText && (
-          <div className="text-sm text-nyx-muted inline-flex items-center gap-2">
+        {statusText && !confirmedTxHash && (
+          <div className={`text-sm inline-flex items-center gap-2 ${statusTone === 'success' ? 'text-nyx-success' : 'text-nyx-muted'}`}>
             {processing && <Loader2 size={14} className="animate-spin text-nyx-accent" />}
             <span>{statusText}</span>
           </div>
@@ -678,6 +692,10 @@ export default function PayInvoice() {
             throw new Error('Destination wallet must match generated deposit address')
           }
           try {
+            setStatusTone('success')
+            setStatusText('AlchemyPay transfer confirmed.')
+            await new Promise((resolve) => setTimeout(resolve, 2000))
+            setStatusTone('muted')
             await autoSettleFromFiatFunding()
           } catch (err) {
             setStatusText(null)
