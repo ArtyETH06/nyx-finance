@@ -23,11 +23,11 @@ export default function Header() {
           to="/invoices"
           className={({ isActive }) =>
             [
-              'relative px-3 py-1.5 rounded-lg text-sm transition-colors duration-150',
+              'relative px-3 py-1.5 text-sm transition-colors duration-150',
               'after:absolute after:left-2 after:right-2 after:-bottom-1 after:h-0.5 after:rounded-full after:transition-opacity',
               isActive
-                ? 'text-nyx-text bg-[rgba(255,255,255,0.06)] after:bg-nyx-accent after:opacity-100'
-                : 'text-nyx-muted hover:text-nyx-text hover:bg-[rgba(255,255,255,0.04)] after:opacity-0',
+                ? 'text-nyx-text after:bg-nyx-accent after:opacity-100'
+                : 'text-nyx-muted hover:text-nyx-text after:opacity-0',
             ].join(' ')
           }
         >
