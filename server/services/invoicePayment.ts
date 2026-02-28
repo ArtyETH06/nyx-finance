@@ -97,19 +97,16 @@ export async function startInvoicePayment(id: string, payerAddress: string) {
         },
       }
     }
-    if (lock.payerAddress.toLowerCase() === payerAddress.toLowerCase()) {
-      console.warn('[payment/start] clearing stale lock for same payer', {
-        invoiceId: invoice.invoiceId,
-        lockId: lock.lockId,
-        payerAddress,
-        depositTo: shortHex(lock.depositTo),
-        calldataSample: shortHex(lock.depositCalldata),
-        temporaryAccountIndex: lock.temporaryAccountIndex,
-      })
-      await db.patchById(id, { paymentLock: null })
-    } else {
-      throw new PaymentFlowError(409, 'Invoice payment is already in progress')
-    }
+    console.warn('[payment/start] replacing active lock to allow retry', {
+      invoiceId: invoice.invoiceId,
+      previousLockId: lock.lockId,
+      previousPayerAddress: lock.payerAddress,
+      requestedPayerAddress: payerAddress,
+      depositTo: shortHex(lock.depositTo),
+      calldataSample: shortHex(lock.depositCalldata),
+      temporaryAccountIndex: lock.temporaryAccountIndex,
+    })
+    await db.patchById(id, { paymentLock: null })
   }
 
   const createdAt = nowIso()
@@ -223,13 +220,26 @@ export async function confirmInvoicePayment(
     token: invoice.tokenSymbol,
     amount: invoice.amount,
   })
-  const settlement = await confirmDepositAndSendPrivately({
-    depositRelayId: lock.depositRelayId,
-    token: invoice.tokenAddress,
-    amount,
-    recipientZkAddress: invoice.issuerAddress,
-    temporaryAccountIndex: lock.temporaryAccountIndex,
-  })
+  let settlement: Awaited<ReturnType<typeof confirmDepositAndSendPrivately>>
+  try {
+    settlement = await confirmDepositAndSendPrivately({
+      depositRelayId: lock.depositRelayId,
+      token: invoice.tokenAddress,
+      amount,
+      recipientZkAddress: invoice.issuerAddress,
+      temporaryAccountIndex: lock.temporaryAccountIndex,
+    })
+  } catch (err) {
+    console.error('[payment/confirm] settlement failed, clearing lock for retry', {
+      invoiceId: invoice.invoiceId,
+      lockId: lock.lockId,
+      payerAddress: payload.payerAddress,
+      depositRelayId: lock.depositRelayId,
+      error: err instanceof Error ? err.message : String(err),
+    })
+    await db.patchById(id, { paymentLock: null })
+    throw err
+  }
 
   const paidAt = nowIso()
   const updated = await db.patchById(id, {
