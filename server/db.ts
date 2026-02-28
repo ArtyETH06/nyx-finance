@@ -1,3 +1,6 @@
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import { MongoClient, ObjectId, type Filter } from 'mongodb'
 
 export type InvoiceStatus = 'sent' | 'accepted' | 'rejected' | 'paid'
@@ -39,14 +42,53 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017'
 const MONGODB_DB = process.env.MONGODB_DB || 'nyx_finance'
 const COLLECTION = 'contracts'
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const DATA_DIR = path.join(__dirname, '..', '.data')
+const DATA_FILE = path.join(DATA_DIR, 'contracts.json')
+
 let client: MongoClient | null = null
+let useFileStore = false
+let warnedFallback = false
+
+function normalizeAddress(address: string): string {
+  return address.trim().toLowerCase()
+}
+
+function ensureFile() {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
+  if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, '[]', 'utf-8')
+}
+
+function readAllFile(): InvoiceDoc[] {
+  ensureFile()
+  try {
+    return JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8')) as InvoiceDoc[]
+  } catch {
+    return []
+  }
+}
+
+function writeAllFile(data: InvoiceDoc[]) {
+  ensureFile()
+  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8')
+}
 
 async function getCollection() {
-  if (!client) {
-    client = new MongoClient(MONGODB_URI)
-    await client.connect()
+  if (useFileStore) return null
+  try {
+    if (!client) {
+      client = new MongoClient(MONGODB_URI, { serverSelectionTimeoutMS: 2500 })
+      await client.connect()
+    }
+    return client.db(MONGODB_DB).collection<InvoiceDoc>(COLLECTION)
+  } catch (err) {
+    useFileStore = true
+    if (!warnedFallback) {
+      warnedFallback = true
+      console.warn('[db] Mongo unavailable, falling back to file store:', err)
+    }
+    return null
   }
-  return client.db(MONGODB_DB).collection<InvoiceDoc>(COLLECTION)
 }
 
 function toObjectId(id: string): ObjectId | null {
@@ -57,19 +99,14 @@ function idFilter(id: string): Filter<InvoiceDoc> {
   const byObjectId = toObjectId(id)
   if (byObjectId) {
     return {
-      $or: [
-        { _id: byObjectId },
-        { _id: id },
-        { invoiceId: id },
-      ],
+      $or: [{ _id: byObjectId }, { _id: id }, { invoiceId: id }],
     }
   }
-  return {
-    $or: [
-      { _id: id },
-      { invoiceId: id },
-    ],
-  }
+  return { $or: [{ _id: id }, { invoiceId: id }] }
+}
+
+function byIdOrInvoiceId(doc: InvoiceDoc, id: string): boolean {
+  return String(doc._id) === id || doc.invoiceId === id
 }
 
 export function toPublicInvoice(doc: InvoiceDoc) {
@@ -82,34 +119,61 @@ export function toPublicInvoice(doc: InvoiceDoc) {
 export const db = {
   async create(doc: InvoiceDoc): Promise<string> {
     const col = await getCollection()
-    const res = await col.insertOne(doc)
-    return res.insertedId.toString()
+    if (col) {
+      const res = await col.insertOne(doc)
+      return res.insertedId.toString()
+    }
+
+    const data = readAllFile()
+    const id = `${Date.now()}-${Math.floor(Math.random() * 10000)}`
+    data.push({ ...doc, _id: id })
+    writeAllFile(data)
+    return id
   },
 
   async listByAddress(address: string): Promise<InvoiceDoc[]> {
+    const normalized = normalizeAddress(address)
     const col = await getCollection()
-    return col
-      .find({
-        $or: [
-          { issuerAddress: address },
-          { payerAddress: address },
-        ],
-      })
-      .sort({ createdAt: -1 })
-      .toArray()
+    if (col) {
+      const all = await col
+        .find({})
+        .sort({ createdAt: -1 })
+        .toArray()
+      return all.filter((doc) =>
+        normalizeAddress(doc.issuerAddress) === normalized ||
+        normalizeAddress(doc.payerAddress) === normalized
+      )
+    }
+
+    return readAllFile()
+      .filter((doc) =>
+        normalizeAddress(doc.issuerAddress) === normalized ||
+        normalizeAddress(doc.payerAddress) === normalized
+      )
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
   },
 
   async getById(id: string): Promise<InvoiceDoc | null> {
     const col = await getCollection()
-    return col.findOne(idFilter(id))
+    if (col) return col.findOne(idFilter(id))
+
+    const data = readAllFile()
+    return data.find((doc) => byIdOrInvoiceId(doc, id)) ?? null
   },
 
   async patchById(id: string, patch: Partial<InvoiceDoc>): Promise<InvoiceDoc | null> {
     const col = await getCollection()
-    await col.updateOne(
-      idFilter(id),
-      { $set: { ...patch, updatedAt: new Date().toISOString() } }
-    )
-    return col.findOne(idFilter(id))
+    const withUpdated = { ...patch, updatedAt: new Date().toISOString() }
+    if (col) {
+      await col.updateOne(idFilter(id), { $set: withUpdated })
+      return col.findOne(idFilter(id))
+    }
+
+    const data = readAllFile()
+    const idx = data.findIndex((doc) => byIdOrInvoiceId(doc, id))
+    if (idx === -1) return null
+    data[idx] = { ...data[idx], ...withUpdated }
+    writeAllFile(data)
+    return data[idx]
   },
 }

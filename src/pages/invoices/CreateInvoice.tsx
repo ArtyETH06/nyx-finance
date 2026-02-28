@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useUnlink } from '@unlink-xyz/react'
 import { toast } from '../../lib/toast'
 import { buildInvoicePdf, sha256Blob } from '../../lib/invoicePdf'
-import { formatIssueDate, makeInvoiceId } from '../../lib/invoices'
+import { formatIssueDate, invoiceStatusPdfText, makeInvoiceId } from '../../lib/invoices'
 import { INVOICE_TOKEN_OPTIONS, getInvoiceTokenBySymbol, type InvoiceTokenSymbol } from '../../lib/tokens'
 
 interface FormState {
@@ -27,7 +27,7 @@ const empty: FormState = {
   payerFirstName:  'Sir',
   payerLastName:   'Paymentsalot',
   payerCompany:    'Moon Coffee DAO',
-  payerAddress:    'unlink1qytudx3dyhjfn7z6h8a84hw3tm2z02s2h2jxzuwr8g3vck2nxxmldz53jwtfr9y2j9pl3dqdujnugre7ppeh6vnyrcm7rq3zuy9hc2r2d59klrtyuayf6h4esna',
+  payerAddress:    'unlink1qyk9ezyexg5rflvfrrzulr8fpzm6el8vdwx68rm894kfv950ea7l9z53jwtfr9y2jx9h07h7svrqru4sct7c8ym8r690qg2mrf3vkx9rdw5hsgvr9aumsjlpsud',
   title:           'Emergency Coffee Refill Retainer',
   description:     'Professional services: 7 espresso-fueled architecture reviews, 3 bug exorcisms, and 1 production incident pep talk.',
   amount:          '42',
@@ -125,7 +125,7 @@ export default function CreateInvoice() {
         description: form.description.trim(),
         amount,
         tokenSymbol: selectedToken.symbol,
-        statusText: 'SENT',
+        statusText: invoiceStatusPdfText('sent'),
       })
 
       const pdfBlob = doc.output('blob')
@@ -137,12 +137,18 @@ export default function CreateInvoice() {
         body: JSON.stringify({
           invoiceId,
           issuerAddress: activeAccount.address,
+          issuerFirstName: form.issuerFirstName || undefined,
+          issuerLastName: form.issuerLastName || undefined,
+          issuerCompany: form.issuerCompany || undefined,
           issuerInfo: {
             firstName: form.issuerFirstName || undefined,
             lastName: form.issuerLastName || undefined,
             company: form.issuerCompany || undefined,
           },
           payerAddress: form.payerAddress.trim(),
+          payerFirstName: form.payerFirstName || undefined,
+          payerLastName: form.payerLastName || undefined,
+          payerCompany: form.payerCompany || undefined,
           payerInfo: {
             firstName: form.payerFirstName || undefined,
             lastName: form.payerLastName || undefined,

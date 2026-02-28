@@ -4,7 +4,15 @@ import { parseAmount, useUnlink } from '@unlink-xyz/react'
 import { ArrowLeft, Check, Download, Loader2, X } from 'lucide-react'
 import { toast } from '../../lib/toast'
 import type { Invoice } from '../../lib/invoices'
-import { fmtPartyName, formatIssueDate, invoiceStatusLabel, invoiceStatusPdfText, normalizeInvoiceRecord } from '../../lib/invoices'
+import {
+  applyInvoiceLocalOverride,
+  fmtPartyName,
+  formatIssueDate,
+  invoiceStatusLabel,
+  invoiceStatusPdfText,
+  normalizeInvoiceRecord,
+  setInvoiceLocalOverride,
+} from '../../lib/invoices'
 import { buildInvoicePdf, downloadPdf, sha256Blob } from '../../lib/invoicePdf'
 import { getTokenByAddress } from '../../lib/tokens'
 
@@ -54,20 +62,24 @@ export default function InvoiceDetail() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/contracts/${id}`)
+      const res = await fetch(`/api/contracts/${id}?ts=${Date.now()}`, {
+        cache: 'no-store',
+      })
       if (res.ok) {
         const data = await res.json() as Record<string, unknown>
-        setInvoice(normalizeInvoiceRecord(data))
+        setInvoice(applyInvoiceLocalOverride(normalizeInvoiceRecord(data)))
         return
       }
 
       // Backward compatibility for older API versions that don't expose
       // GET /api/contracts/:id (or return 404 for legacy id formats).
       if (res.status === 404 && address) {
-        const listRes = await fetch(`/api/contracts?address=${encodeURIComponent(address)}`)
+        const listRes = await fetch(`/api/contracts?address=${encodeURIComponent(address)}&ts=${Date.now()}`, {
+          cache: 'no-store',
+        })
         if (!listRes.ok) throw new Error('Failed to load invoice')
         const listRaw = await listRes.json() as Record<string, unknown>[]
-        const list = listRaw.map(normalizeInvoiceRecord)
+        const list = listRaw.map((item) => applyInvoiceLocalOverride(normalizeInvoiceRecord(item)))
         const match = list.find((inv) => inv._id === id || inv.invoiceId === id)
         if (match) {
           setInvoice(match)
@@ -85,24 +97,54 @@ export default function InvoiceDetail() {
 
   useEffect(() => { void loadInvoice() }, [loadInvoice])
 
-  async function patchInvoice(patch: Record<string, unknown>) {
+  useEffect(() => {
     if (!id) return
-    const res = await fetch(`/api/contracts/${id}`, {
+    const timer = window.setInterval(() => {
+      if (!busy) void loadInvoice()
+    }, 5000)
+    return () => window.clearInterval(timer)
+  }, [id, busy, loadInvoice])
+
+  async function patchInvoice(patch: Record<string, unknown>) {
+    if (!id) throw new Error('Missing invoice id')
+
+    const tryPatch = async (targetId: string) => fetch(`/api/contracts/${targetId}?ts=${Date.now()}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
+      cache: 'no-store',
       body: JSON.stringify(patch),
     })
+
+    let res = await tryPatch(id)
+
+    if (!res.ok && invoice?.invoiceId && invoice.invoiceId !== id) {
+      res = await tryPatch(invoice.invoiceId)
+    }
+
     if (!res.ok) {
       if (res.status === 404) {
-        // Compatibility fallback for older API servers without PATCH support.
-        setInvoice((prev) => (prev ? { ...prev, ...(patch as Partial<Invoice>) } : prev))
+        // Compatibility mode for older servers that don't support PATCH /contracts/:id.
+        const fallback = patch as Partial<Pick<Invoice, 'status' | 'payment' | 'rejectionReason'>>
+        setInvoice((prev) => (prev ? { ...prev, ...fallback } : prev))
+        setInvoiceLocalOverride(invoice?._id, invoice?.invoiceId, fallback)
         return
       }
       const data = await res.json().catch(() => ({}))
       throw new Error(data.error ?? 'Failed to update invoice')
     }
-    const data = await res.json()
-    setInvoice(data.invoice as Invoice)
+
+    const data = await res.json() as { invoice?: Record<string, unknown> }
+    if (data.invoice) {
+      const normalized = normalizeInvoiceRecord(data.invoice)
+      setInvoice(normalized)
+      setInvoiceLocalOverride(
+        normalized._id,
+        normalized.invoiceId,
+        patch as Partial<Pick<Invoice, 'status' | 'payment' | 'rejectionReason'>>
+      )
+    } else {
+      await loadInvoice()
+    }
   }
 
   async function handleReject() {
@@ -143,14 +185,15 @@ export default function InvoiceDetail() {
     const status = await waitForConfirmation(result.relayId, { timeout: 180000 })
 
     setTxStatusText('Updating invoice status...')
+    const paidPayment: Invoice['payment'] = {
+      relayId: result.relayId,
+      txHash: status.txHash,
+      paidAt: new Date().toISOString(),
+    }
     await patchInvoice({
       status: 'paid',
       rejectionReason: null,
-      payment: {
-        relayId: result.relayId,
-        txHash: status.txHash,
-        paidAt: new Date().toISOString(),
-      },
+      payment: paidPayment,
     })
 
     await refresh()
@@ -255,7 +298,6 @@ export default function InvoiceDetail() {
               {currentStatusLabel}
             </span>
             <p className="text-nyx-text font-semibold mt-3">{fmtMoney(invoice.amount, invoice.tokenSymbol)}</p>
-            <p className="text-nyx-muted text-xs mt-1 font-mono">{shortAddress(invoice.tokenAddress)}</p>
           </div>
         </div>
 
@@ -289,6 +331,28 @@ export default function InvoiceDetail() {
             <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">PDF Hash</p>
             <p className="font-mono text-nyx-muted text-xs break-all">{invoice.pdfHash}</p>
           </div>
+          {invoice.status === 'paid' && (invoice.payment?.txHash || invoice.payment?.relayId) && (
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Payment Proof</p>
+              <div className="space-y-1">
+                {invoice.payment?.txHash && (
+                  <a
+                    href={`https://testnet.monadexplorer.com/tx/${invoice.payment.txHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-nyx-success text-sm underline break-all"
+                  >
+                    {invoice.payment.txHash}
+                  </a>
+                )}
+                {invoice.payment?.relayId && (
+                  <p className="font-mono text-nyx-muted text-xs break-all">
+                    Relay ID: {invoice.payment.relayId}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
           {invoice.rejectionReason && (
             <div className="bg-[rgba(239,68,68,0.08)] border border-nyx-danger/30 rounded-lg p-3">
               <p className="text-nyx-danger text-xs font-medium mb-1">Rejection Reason</p>
@@ -310,7 +374,7 @@ export default function InvoiceDetail() {
         </div>
       )}
 
-      {isPayer && (
+      {isPayer && invoice.status !== 'rejected' && (
         <div className="nyx-card p-6">
           <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-4">Actions</p>
 

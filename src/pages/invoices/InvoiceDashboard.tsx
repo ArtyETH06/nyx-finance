@@ -3,7 +3,7 @@ import { useUnlink } from '@unlink-xyz/react'
 import { useNavigate } from 'react-router-dom'
 import { FilePlus, ArrowUpRight, ArrowDownLeft, RefreshCw } from 'lucide-react'
 import type { Invoice } from '../../lib/invoices'
-import { fmtPartyName, invoiceStatusLabel, normalizeInvoiceRecord } from '../../lib/invoices'
+import { applyInvoiceLocalOverride, fmtPartyName, invoiceStatusLabel, normalizeInvoiceRecord } from '../../lib/invoices'
 
 const STATUS_STYLES: Record<Invoice['status'], string> = {
   sent: 'bg-[rgba(234,179,8,0.16)] text-yellow-300',
@@ -57,10 +57,12 @@ export default function InvoiceDashboard() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/contracts?address=${encodeURIComponent(address)}`)
+      const res = await fetch(`/api/contracts?address=${encodeURIComponent(address)}&ts=${Date.now()}`, {
+        cache: 'no-store',
+      })
       if (!res.ok) throw new Error('Failed to load invoices')
       const raw = await res.json() as Record<string, unknown>[]
-      setInvoices(raw.map(normalizeInvoiceRecord))
+      setInvoices(raw.map((item) => applyInvoiceLocalOverride(normalizeInvoiceRecord(item))))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unknown error')
     } finally {
@@ -69,6 +71,14 @@ export default function InvoiceDashboard() {
   }
 
   useEffect(() => { load() }, [address])
+
+  useEffect(() => {
+    if (!address) return
+    const timer = window.setInterval(() => {
+      void load()
+    }, 5000)
+    return () => window.clearInterval(timer)
+  }, [address])
 
   return (
     <main className="px-8 py-10 max-w-4xl">
@@ -175,16 +185,6 @@ export default function InvoiceDashboard() {
                 <p className="text-nyx-muted text-xs flex-shrink-0 hidden sm:block">
                   {formatDate(inv.createdAt)}
                 </p>
-
-                {/* Role badge */}
-                <span className={[
-                  'text-[10px] font-semibold uppercase tracking-wider px-2 py-1 rounded-md flex-shrink-0',
-                  isSent
-                    ? 'bg-[rgba(108,92,231,0.1)] text-nyx-accent'
-                    : 'bg-[rgba(34,197,94,0.08)] text-nyx-success',
-                ].join(' ')}>
-                  {isSent ? 'Sent' : 'Received'}
-                </span>
 
                 {/* Status badge */}
                 <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-1 rounded-md flex-shrink-0 ${STATUS_STYLES[inv.status]}`}>

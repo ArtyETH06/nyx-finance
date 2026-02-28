@@ -31,6 +31,35 @@ export interface Invoice {
   }
 }
 
+interface InvoiceLocalOverride {
+  status?: InvoiceStatus
+  payment?: Invoice['payment']
+  rejectionReason?: string | null
+}
+
+const LOCAL_OVERRIDES_KEY = 'nyx_invoice_overrides_v1'
+
+function readLocalOverrides(): Record<string, InvoiceLocalOverride> {
+  if (typeof window === 'undefined') return {}
+  try {
+    const raw = window.localStorage.getItem(LOCAL_OVERRIDES_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw) as Record<string, InvoiceLocalOverride>
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeLocalOverrides(data: Record<string, InvoiceLocalOverride>) {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(LOCAL_OVERRIDES_KEY, JSON.stringify(data))
+  } catch {
+    // ignore storage failures
+  }
+}
+
 export function normalizeInvoiceRecord(raw: Record<string, unknown>): Invoice {
   const legacyCurrency = String(raw.currencySymbol ?? raw.tokenSymbol ?? raw.currency ?? 'USDCm')
   let tokenAddress = typeof raw.tokenAddress === 'string' ? raw.tokenAddress : ''
@@ -52,13 +81,26 @@ export function normalizeInvoiceRecord(raw: Record<string, unknown>): Invoice {
     }
   }
 
+  const legacyIssuerInfo = {
+    firstName: typeof raw.issuerFirstName === 'string' ? raw.issuerFirstName : undefined,
+    lastName: typeof raw.issuerLastName === 'string' ? raw.issuerLastName : undefined,
+    company: typeof raw.issuerCompany === 'string' ? raw.issuerCompany : undefined,
+  }
+  const legacyPayerInfo = {
+    firstName: typeof raw.payerFirstName === 'string' ? raw.payerFirstName : undefined,
+    lastName: typeof raw.payerLastName === 'string' ? raw.payerLastName : undefined,
+    company: typeof raw.payerCompany === 'string' ? raw.payerCompany : undefined,
+  }
+  const issuerInfo = (raw.issuerInfo as Invoice['issuerInfo']) ?? legacyIssuerInfo
+  const payerInfo = (raw.payerInfo as Invoice['payerInfo']) ?? legacyPayerInfo
+
   return {
     _id: String(raw._id ?? ''),
     invoiceId: String(raw.invoiceId ?? raw._id ?? ''),
     issuerAddress: String(raw.issuerAddress ?? ''),
     payerAddress: String(raw.payerAddress ?? ''),
-    issuerInfo: (raw.issuerInfo as Invoice['issuerInfo']) ?? undefined,
-    payerInfo: (raw.payerInfo as Invoice['payerInfo']) ?? undefined,
+    issuerInfo,
+    payerInfo,
     title: String(raw.title ?? ''),
     description: String(raw.description ?? ''),
     amount: Number(raw.amount ?? 0),
@@ -103,4 +145,40 @@ export function invoiceStatusPdfText(status: InvoiceStatus): string {
   if (status === 'rejected') return 'REJECTED'
   if (status === 'paid') return 'PAID'
   return 'PENDING'
+}
+
+export function setInvoiceLocalPaidOverride(
+  id: string | undefined,
+  invoiceId: string | undefined,
+  payment: Invoice['payment']
+) {
+  setInvoiceLocalOverride(id, invoiceId, { status: 'paid', payment })
+}
+
+export function setInvoiceLocalOverride(
+  id: string | undefined,
+  invoiceId: string | undefined,
+  patch: Partial<Pick<Invoice, 'status' | 'payment' | 'rejectionReason'>>
+) {
+  const data = readLocalOverrides()
+  const next = {
+    status: patch.status,
+    payment: patch.payment,
+    rejectionReason: patch.rejectionReason,
+  }
+  if (id) data[id] = { ...(data[id] ?? {}), ...next }
+  if (invoiceId) data[invoiceId] = { ...(data[invoiceId] ?? {}), ...next }
+  writeLocalOverrides(data)
+}
+
+export function applyInvoiceLocalOverride(invoice: Invoice): Invoice {
+  const data = readLocalOverrides()
+  const override = data[invoice._id] ?? data[invoice.invoiceId]
+  if (!override) return invoice
+  return {
+    ...invoice,
+    status: override.status ?? invoice.status,
+    rejectionReason: override.rejectionReason ?? invoice.rejectionReason,
+    payment: override.payment ?? invoice.payment,
+  }
 }
