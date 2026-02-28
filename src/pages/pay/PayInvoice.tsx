@@ -70,7 +70,6 @@ export default function PayInvoice() {
   const [confirmedTxHash, setConfirmedTxHash] = useState<string | null>(null)
   const [receiptBlob, setReceiptBlob] = useState<Blob | null>(null)
   const [tokenBalanceText, setTokenBalanceText] = useState<string | null>(null)
-  const [temporaryZkAddress, setTemporaryZkAddress] = useState<string | null>(null)
 
   const ethereum = useMemo(() => {
     if (typeof window === 'undefined') return null
@@ -129,6 +128,32 @@ export default function PayInvoice() {
     void loadBalance()
   }, [ethereum, payerAddress, invoice])
 
+  useEffect(() => {
+    async function preparePaidReceipt() {
+      if (!invoice || invoice.status !== 'paid') return
+      const txHash = invoice.payment?.txHash
+      if (!txHash) return
+      setConfirmedTxHash(txHash)
+      if (receiptBlob) return
+
+      try {
+        const receipt = await buildPaymentReceiptPdf({
+          invoiceId: invoice.invoiceId,
+          amount: invoice.amount,
+          token: invoice.tokenSymbol,
+          payerAddress: invoice.payment?.payerAddress ?? 'payer',
+          issuerZkAddress: invoice.issuerAddress,
+          txHash,
+          timestampIso: invoice.payment?.paidAt ?? invoice.updatedAt ?? invoice.createdAt,
+        })
+        setReceiptBlob(receipt)
+      } catch {
+        // ignore receipt generation errors on load
+      }
+    }
+    void preparePaidReceipt()
+  }, [invoice, receiptBlob])
+
   async function connectMetaMask() {
     if (!ethereum) {
       setError('MetaMask is required to pay this invoice')
@@ -157,7 +182,6 @@ export default function PayInvoice() {
       })
       const startData = await startRes.json().catch(() => ({}))
       if (!startRes.ok) throw new Error(startData.error ?? 'Failed to prepare payment')
-      setTemporaryZkAddress(typeof startData.temporaryZkAddress === 'string' ? startData.temporaryZkAddress : null)
       setStatusText('Temporary private settlement address created')
 
       setStatusText('Confirm payment in MetaMask...')
@@ -268,26 +292,18 @@ export default function PayInvoice() {
             <p className="text-nyx-text text-sm">{fmtAmount(invoice.amount, invoice.tokenSymbol)}</p>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Freelancer (ZK)</p>
-            <p className="text-nyx-muted text-xs font-mono break-all">{invoice.issuerAddress}</p>
-          </div>
-          <div>
             <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Status</p>
             <p className="text-nyx-text text-sm uppercase">{statusLabel(invoice.status)}</p>
-          </div>
-          <div>
-            <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Payer Wallet</p>
-            <p className="text-nyx-muted text-xs font-mono break-all">{payerAddress ?? 'Not connected'}</p>
           </div>
           <div>
             <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Token Balance</p>
             <p className="text-nyx-text text-sm">{tokenBalanceText ?? 'Connect wallet to load'}</p>
           </div>
-          <div>
-            <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Temporary ZK</p>
-            <p className="text-nyx-muted text-xs font-mono break-all">{temporaryZkAddress ?? 'Created during payment'}</p>
-          </div>
         </div>
+
+        {invoice.status === 'paid' && (
+          <p className="text-nyx-success text-sm">This invoice has already been paid.</p>
+        )}
 
         <div className="flex flex-wrap gap-3">
           <button
