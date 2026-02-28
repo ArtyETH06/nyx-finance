@@ -3,8 +3,12 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { useUnlink } from '@unlink-xyz/react'
 import Header from './components/Header'
 import WalletPopup from './components/WalletPopup'
+import Toast from './components/Toast'
+import InvoiceLayout from './components/InvoiceLayout'
 import Home from './pages/Home'
 import Profile from './pages/Profile'
+import InvoiceDashboard from './pages/invoices/InvoiceDashboard'
+import CreateInvoice from './pages/invoices/CreateInvoice'
 
 function AppInner() {
   const { ready, walletExists, activeAccount, createAccount } = useUnlink()
@@ -41,7 +45,12 @@ function AppInner() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/invoices" element={<InvoiceLayout />}>
+          <Route index element={<InvoiceDashboard />} />
+          <Route path="create" element={<CreateInvoice />} />
+        </Route>
       </Routes>
+      <Toast />
     </div>
   )
 }
