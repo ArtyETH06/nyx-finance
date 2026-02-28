@@ -6,7 +6,9 @@ import {
   ArrowDownToLine, ArrowUpFromLine, Link as LinkIcon, ChevronDown,
 } from 'lucide-react'
 import { toast } from '../lib/toast'
-import { TOKENS, NATIVE_TOKEN_ADDRESS, getTokenByAddress, displayAmount, shortenAddress } from '../lib/tokens'
+import { TOKENS, NATIVE_TOKEN_ADDRESS, getTokenByAddress, displayAmount, shortenAddress, type Token } from '../lib/tokens'
+
+const EXPLORER = 'https://testnet.monadexplorer.com/tx'
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -123,6 +125,17 @@ export default function Wallet() {
     }
   }
 
+  async function refreshAllBalances(token: Token) {
+    // Refresh private balances
+    await refresh()
+    // Refresh public balance for this token in both sections simultaneously
+    if (publicAddress) {
+      const bal = await fetchPublicBalance(token.address, publicAddress)
+      if (token.address === depositToken) setPublicDepositBalance(bal)
+      if (token.address === withdrawToken) setPublicWithdrawBalance(bal)
+    }
+  }
+
   async function handleDeposit() {
     if (!publicAddress || !depositAmount) return
     const token = getTokenByAddress(depositToken)
@@ -130,7 +143,6 @@ export default function Wallet() {
     setDepositPending(true)
     try {
       const amount = parseAmount(depositAmount, token.decimals)
-      // deposit() returns DepositRelayResult: { to, calldata, value? }
       const result = await deposit([{ token: token.address, amount, depositor: publicAddress }]) as
         | { to: string; calldata: string; value?: string }
         | undefined
@@ -141,19 +153,22 @@ export default function Wallet() {
         data: result.calldata,
         from: publicAddress,
       }
-      // Native token deposits require sending the token amount as tx value
       if (token.isNative) {
         txParams.value = '0x' + amount.toString(16)
       } else if (result.value) {
         txParams.value = result.value
       }
-      await window.ethereum.request({
+      const txHash: string = await window.ethereum.request({
         method: 'eth_sendTransaction',
         params: [txParams],
       })
-      await refresh()
       setDepositAmount('')
-      toast.show('Deposit submitted. Balances will update shortly.')
+      await refreshAllBalances(token)
+      toast.show(
+        `Deposited ${depositAmount} ${token.symbol} from ${shortenAddress(publicAddress)}`,
+        'success',
+        txHash ? `${EXPLORER}/${txHash}` : undefined,
+      )
     } catch (e) {
       toast.show(e instanceof Error ? e.message : 'Deposit failed.', 'error')
     } finally {
@@ -168,10 +183,17 @@ export default function Wallet() {
     setWithdrawPending(true)
     try {
       const amount = parseAmount(withdrawAmount, token.decimals)
-      await withdraw([{ token: token.address, amount, recipient: withdrawRecipient }])
-      await refresh()
+      const result = await withdraw([{ token: token.address, amount, recipient: withdrawRecipient }]) as
+        | { txHash?: string; relayId?: string }
+        | undefined
       setWithdrawAmount('')
-      toast.show('Withdrawal submitted. Balances will update shortly.')
+      await refreshAllBalances(token)
+      const txHash = result?.txHash
+      toast.show(
+        `Withdrew ${withdrawAmount} ${token.symbol} to ${shortenAddress(withdrawRecipient)}`,
+        'success',
+        txHash ? `${EXPLORER}/${txHash}` : undefined,
+      )
     } catch (e) {
       toast.show(e instanceof Error ? e.message : 'Withdrawal failed.', 'error')
     } finally {
@@ -181,12 +203,18 @@ export default function Wallet() {
 
   if (!ready || !activeAccount) return null
 
+  // Normalise all balance keys to lowercase so lookups are case-insensitive
+  const normBalances: Record<string, bigint> = Object.fromEntries(
+    Object.entries(balances ?? {}).map(([k, v]) => [k.toLowerCase(), v])
+  )
+  const bal = (addr: string) => normBalances[addr.toLowerCase()] ?? 0n
+
   const balanceEntries = Object.entries(balances ?? {}).filter(([, v]) => v > 0n)
-  const tokensWithBalance = TOKENS.filter(t => (balances?.[t.address] ?? 0n) > 0n)
+  const tokensWithBalance = TOKENS.filter(t => bal(t.address) > 0n)
 
   const selectedDepositToken = getTokenByAddress(depositToken)
   const selectedWithdrawToken = withdrawToken ? getTokenByAddress(withdrawToken) : null
-  const privateWithdrawBalance = withdrawToken ? (balances?.[withdrawToken] ?? 0n) : 0n
+  const privateWithdrawBalance = withdrawToken ? bal(withdrawToken) : 0n
 
   return (
     <main className="max-w-2xl mx-auto px-6 py-12 space-y-5">

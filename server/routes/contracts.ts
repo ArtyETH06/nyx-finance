@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express'
-import { getDb } from '../db.js'
+import { db } from '../db.js'
 
 export const contractsRouter = Router()
 
@@ -17,26 +17,26 @@ contractsRouter.post('/contracts', async (req: Request, res: Response) => {
       return
     }
 
-    const doc = {
+    const doc: Record<string, unknown> = {
       issuerAddress,
-      issuerFirstName: issuerFirstName || undefined,
-      issuerLastName:  issuerLastName  || undefined,
-      issuerCompany:   issuerCompany   || undefined,
       payerAddress,
-      payerFirstName:  payerFirstName  || undefined,
-      payerLastName:   payerLastName   || undefined,
-      payerCompany:    payerCompany    || undefined,
       title,
       description,
-      amount: Number(amount),
-      currency: 'USDC' as const,
-      status: 'sent' as const,
-      createdAt: new Date(),
+      amount:    Number(amount),
+      currency:  'USDC',
+      status:    'sent',
+      createdAt: new Date().toISOString(),
     }
 
-    const db = await getDb()
-    const result = await db.collection('contracts').insertOne(doc)
-    res.status(201).json({ ok: true, id: result.insertedId })
+    if (issuerFirstName) doc.issuerFirstName = issuerFirstName
+    if (issuerLastName)  doc.issuerLastName  = issuerLastName
+    if (issuerCompany)   doc.issuerCompany   = issuerCompany
+    if (payerFirstName)  doc.payerFirstName  = payerFirstName
+    if (payerLastName)   doc.payerLastName   = payerLastName
+    if (payerCompany)    doc.payerCompany    = payerCompany
+
+    const id = db.insert(doc)
+    res.status(201).json({ ok: true, id })
   } catch (err) {
     console.error('[POST /api/contracts]', err)
     res.status(500).json({ error: 'Failed to create invoice' })
@@ -52,12 +52,9 @@ contractsRouter.get('/contracts', async (req: Request, res: Response) => {
       return
     }
 
-    const db = await getDb()
-    const docs = await db
-      .collection('contracts')
-      .find({ $or: [{ issuerAddress: address }, { payerAddress: address }] })
-      .sort({ createdAt: -1 })
-      .toArray()
+    const docs = db.query(
+      (doc) => doc.issuerAddress === address || doc.payerAddress === address
+    )
 
     res.json(docs)
   } catch (err) {

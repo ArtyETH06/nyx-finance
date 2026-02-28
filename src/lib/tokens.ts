@@ -46,7 +46,10 @@ export function getTokenByAddress(address: string): Token | undefined {
 }
 
 export function displayAmount(amount: bigint, decimals: number): string {
-  return formatAmount(amount, decimals)
+  const formatted = formatAmount(amount, decimals)
+  const dot = formatted.indexOf('.')
+  if (dot === -1) return formatted
+  return formatted.slice(0, dot + 3) // 2 decimal places
 }
 
 export function shortenAddress(address: string, chars = 6): string {

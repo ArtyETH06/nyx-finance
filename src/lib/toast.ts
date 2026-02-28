@@ -4,6 +4,7 @@ export interface ToastMessage {
   id: number
   text: string
   type: ToastType
+  href?: string
 }
 
 type Listener = (msgs: ToastMessage[]) => void
@@ -18,9 +19,9 @@ function notify() {
 }
 
 export const toast = {
-  show(text: string, type: ToastType = 'success', duration = 3500) {
+  show(text: string, type: ToastType = 'success', href?: string, duration = 5000) {
     const id = ++nextId
-    messages = [...messages, { id, text, type }]
+    messages = [...messages, { id, text, type, href }]
     notify()
     setTimeout(() => {
       messages = messages.filter((m) => m.id !== id)
