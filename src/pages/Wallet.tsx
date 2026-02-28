@@ -41,19 +41,19 @@ async function fetchPublicBalance(tokenAddress: string, walletAddress: string): 
   try {
     // Native MON — use eth_getBalance
     if (tokenAddress.toLowerCase() === NATIVE_TOKEN_ADDRESS.toLowerCase()) {
-      const result: string = await window.ethereum.request({
+      const result = await window.ethereum.request({
         method: 'eth_getBalance',
         params: [walletAddress, 'latest'],
       })
-      return result ? BigInt(result) : 0n
+      return result ? BigInt(result as string) : 0n
     }
     // ERC-20 — balanceOf(address)
     const data = '0x70a08231' + walletAddress.slice(2).padStart(64, '0')
-    const result: string = await window.ethereum.request({
+    const result = await window.ethereum.request({
       method: 'eth_call',
       params: [{ to: tokenAddress, data }, 'latest'],
     })
-    return result && result !== '0x' ? BigInt(result) : 0n
+    return result && result !== '0x' ? BigInt(result as string) : 0n
   } catch {
     return 0n
   }
@@ -82,7 +82,7 @@ export default function Wallet() {
   const [withdrawToken, setWithdrawToken] = useState('')
   const [withdrawAmount, setWithdrawAmount] = useState('')
   const [withdrawRecipient, setWithdrawRecipient] = useState('')
-  const [publicWithdrawBalance, setPublicWithdrawBalance] = useState<bigint>(0n)
+  const [, setPublicWithdrawBalance] = useState<bigint>(0n)
 
   const address = activeAccount?.address ?? ''
 
@@ -161,7 +161,7 @@ export default function Wallet() {
     try {
       const amount = parseAmount(depositAmount, token.decimals)
       const result = await deposit([{ token: token.address, amount, depositor: publicAddress }]) as
-        | { to: string; calldata: string; value?: string }
+        | { to: string; calldata: string; value?: string | bigint }
         | undefined
       if (!result) throw new Error('No deposit result returned')
       if (!window.ethereum) throw new Error('No wallet provider found')
@@ -172,6 +172,8 @@ export default function Wallet() {
       }
       if (token.isNative) {
         txParams.value = '0x' + amount.toString(16)
+      } else if (typeof result.value === 'bigint') {
+        txParams.value = `0x${result.value.toString(16)}`
       } else if (result.value) {
         txParams.value = result.value
       }

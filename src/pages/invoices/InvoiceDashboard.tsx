@@ -2,28 +2,13 @@ import { useEffect, useState } from 'react'
 import { useUnlink } from '@unlink-xyz/react'
 import { useNavigate } from 'react-router-dom'
 import { FilePlus, ArrowUpRight, ArrowDownLeft, RefreshCw } from 'lucide-react'
-
-interface Invoice {
-  _id: string
-  issuerAddress: string
-  issuerFirstName?: string
-  issuerLastName?: string
-  issuerCompany?: string
-  payerAddress: string
-  payerFirstName?: string
-  payerLastName?: string
-  payerCompany?: string
-  title: string
-  description: string
-  amount: number
-  currency: string
-  status: 'draft' | 'sent' | 'paid'
-  createdAt: string
-}
+import type { Invoice } from '../../lib/invoices'
+import { fmtPartyName } from '../../lib/invoices'
 
 const STATUS_STYLES: Record<Invoice['status'], string> = {
-  draft: 'bg-[rgba(140,148,179,0.12)] text-nyx-muted',
   sent:  'bg-[rgba(108,92,231,0.12)] text-nyx-accent',
+  accepted: 'bg-[rgba(59,130,246,0.12)] text-[#93c5fd]',
+  rejected: 'bg-[rgba(239,68,68,0.14)] text-nyx-danger',
   paid:  'bg-[rgba(34,197,94,0.12)]  text-nyx-success',
 }
 
@@ -37,11 +22,13 @@ function formatDate(iso: string) {
 
 function counterpartyLabel(inv: Invoice, address: string) {
   if (inv.issuerAddress === address) {
-    const name = [inv.payerFirstName, inv.payerLastName].filter(Boolean).join(' ')
-    return name || inv.payerCompany || inv.payerAddress.slice(0, 14) + '…'
+    return fmtPartyName(inv.payerInfo) !== '—'
+      ? fmtPartyName(inv.payerInfo)
+      : inv.payerAddress.slice(0, 14) + '…'
   }
-  const name = [inv.issuerFirstName, inv.issuerLastName].filter(Boolean).join(' ')
-  return name || inv.issuerCompany || inv.issuerAddress.slice(0, 14) + '…'
+  return fmtPartyName(inv.issuerInfo) !== '—'
+    ? fmtPartyName(inv.issuerInfo)
+    : inv.issuerAddress.slice(0, 14) + '…'
 }
 
 export default function InvoiceDashboard() {
@@ -126,7 +113,11 @@ export default function InvoiceDashboard() {
           {invoices.map((inv) => {
             const isSent = inv.issuerAddress === address
             return (
-              <div key={inv._id} className="nyx-card p-5 flex items-center justify-between gap-4">
+              <button
+                key={inv._id}
+                onClick={() => navigate(`/invoices/${inv._id}`)}
+                className="nyx-card p-5 flex items-center justify-between gap-4 w-full text-left"
+              >
                 {/* Role icon */}
                 <div className={[
                   'w-9 h-9 rounded-lg flex-shrink-0 flex items-center justify-center',
@@ -142,6 +133,7 @@ export default function InvoiceDashboard() {
 
                 {/* Title + counterparty */}
                 <div className="flex-1 min-w-0">
+                  <p className="text-nyx-muted text-[10px] uppercase tracking-wider mb-0.5">{inv.invoiceId}</p>
                   <p className="text-nyx-text text-sm font-medium truncate">{inv.title}</p>
                   <p className="text-nyx-muted text-xs mt-0.5 truncate">
                     {isSent ? 'To: ' : 'From: '}{counterpartyLabel(inv, address)}
@@ -172,7 +164,7 @@ export default function InvoiceDashboard() {
                 <p className="text-nyx-text text-sm font-semibold flex-shrink-0 tabular-nums">
                   {formatAmount(inv.amount, inv.currency)}
                 </p>
-              </div>
+              </button>
             )
           })}
         </div>

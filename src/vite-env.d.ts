@@ -14,3 +14,5 @@ declare global {
     ethereum?: EthereumProvider
   }
 }
+
+export {}

@@ -10,6 +10,7 @@ import Profile from './pages/Profile'
 import Wallet from './pages/Wallet'
 import InvoiceDashboard from './pages/invoices/InvoiceDashboard'
 import CreateInvoice from './pages/invoices/CreateInvoice'
+import InvoiceDetail from './pages/invoices/InvoiceDetail'
 
 function AppInner() {
   const { ready, walletExists, activeAccount, createAccount } = useUnlink()
@@ -50,6 +51,7 @@ function AppInner() {
         <Route path="/invoices" element={<InvoiceLayout />}>
           <Route index element={<InvoiceDashboard />} />
           <Route path="create" element={<CreateInvoice />} />
+          <Route path=":id" element={<InvoiceDetail />} />
         </Route>
       </Routes>
       <Toast />

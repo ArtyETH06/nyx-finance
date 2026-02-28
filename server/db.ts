@@ -1,52 +1,98 @@
-/**
- * Zero-config JSON file store — no MongoDB required.
- * Data is persisted to .data/contracts.json next to the server directory.
- */
-import fs from 'fs'
-import path from 'path'
-import { fileURLToPath } from 'url'
+import { MongoClient, ObjectId } from 'mongodb'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const DATA_DIR  = path.join(__dirname, '..', '.data')
-const DATA_FILE = path.join(DATA_DIR, 'contracts.json')
+export type InvoiceStatus = 'sent' | 'accepted' | 'rejected' | 'paid'
 
-function ensureFile() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
-  if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, '[]', 'utf-8')
-}
-
-function readAll(): Record<string, unknown>[] {
-  ensureFile()
-  try {
-    return JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'))
-  } catch {
-    return []
+export interface InvoiceDoc {
+  _id?: ObjectId
+  invoiceId: string
+  issuerAddress: string
+  payerAddress: string
+  issuerInfo?: {
+    firstName?: string
+    lastName?: string
+    company?: string
+  }
+  payerInfo?: {
+    firstName?: string
+    lastName?: string
+    company?: string
+  }
+  title: string
+  description: string
+  amount: number
+  currency: string
+  status: InvoiceStatus
+  rejectionReason: string | null
+  pdfHash: string
+  createdAt: string
+  updatedAt?: string
+  payment?: {
+    relayId?: string
+    txHash?: string
+    paidAt?: string
   }
 }
 
-function writeAll(data: Record<string, unknown>[]) {
-  ensureFile()
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8')
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017'
+const MONGODB_DB = process.env.MONGODB_DB || 'nyx_finance'
+const COLLECTION = 'contracts'
+
+let client: MongoClient | null = null
+
+async function getCollection() {
+  if (!client) {
+    client = new MongoClient(MONGODB_URI)
+    await client.connect()
+  }
+  return client.db(MONGODB_DB).collection<InvoiceDoc>(COLLECTION)
 }
 
-let seq = 0
+function toObjectId(id: string): ObjectId | null {
+  return ObjectId.isValid(id) ? new ObjectId(id) : null
+}
+
+export function toPublicInvoice(doc: InvoiceDoc) {
+  return {
+    ...doc,
+    _id: doc._id?.toString(),
+  }
+}
 
 export const db = {
-  insert(doc: Record<string, unknown>): string {
-    const data = readAll()
-    const id   = `${Date.now()}-${++seq}`
-    data.push({ ...doc, _id: id })
-    writeAll(data)
-    return id
+  async create(doc: InvoiceDoc): Promise<string> {
+    const col = await getCollection()
+    const res = await col.insertOne(doc)
+    return res.insertedId.toString()
   },
 
-  query(predicate: (doc: Record<string, unknown>) => boolean): Record<string, unknown>[] {
-    return readAll()
-      .filter(predicate)
-      .sort((a, b) => {
-        const ta = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt as string).getTime()
-        const tb = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt as string).getTime()
-        return tb - ta
+  async listByAddress(address: string): Promise<InvoiceDoc[]> {
+    const col = await getCollection()
+    return col
+      .find({
+        $or: [
+          { issuerAddress: address },
+          { payerAddress: address },
+        ],
       })
+      .sort({ createdAt: -1 })
+      .toArray()
+  },
+
+  async getById(id: string): Promise<InvoiceDoc | null> {
+    const oid = toObjectId(id)
+    if (!oid) return null
+    const col = await getCollection()
+    return col.findOne({ _id: oid })
+  },
+
+  async patchById(id: string, patch: Partial<InvoiceDoc>): Promise<InvoiceDoc | null> {
+    const oid = toObjectId(id)
+    if (!oid) return null
+    const col = await getCollection()
+    await col.updateOne(
+      { _id: oid },
+      { $set: { ...patch, updatedAt: new Date().toISOString() } }
+    )
+    return col.findOne({ _id: oid })
   },
 }

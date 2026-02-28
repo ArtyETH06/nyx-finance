@@ -86,11 +86,21 @@ export default function Profile() {
         {/* Address */}
         <div className="nyx-card p-6">
           <p className="text-nyx-muted text-xs uppercase tracking-widest mb-3">Private Address</p>
-          <p className="font-mono text-nyx-text text-sm break-all mb-4">{address}</p>
-          <button onClick={handleCopy} className="btn-secondary">
-            <Copy size={13} strokeWidth={1.5} />
-            {copied ? 'Copied!' : 'Copy Address'}
-          </button>
+          <div
+            className="relative group cursor-pointer inline-block w-full"
+            onClick={handleCopy}
+          >
+            <p className={`font-mono text-sm break-all transition-colors duration-150 select-none ${
+              copied ? 'text-nyx-success' : 'text-nyx-text group-hover:text-nyx-accent'
+            }`}>
+              {copied ? 'Copied!' : address}
+            </p>
+            {!copied && (
+              <span className="absolute -top-7 left-0 text-[10px] text-nyx-muted bg-nyx-secondary border border-[rgba(255,255,255,0.08)] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap pointer-events-none z-10">
+                Click to copy
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Recovery Phrase */}

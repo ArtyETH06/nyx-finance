@@ -1,42 +1,73 @@
 import { Router, Request, Response } from 'express'
-import { db } from '../db.js'
+import { db, toPublicInvoice, type InvoiceDoc, type InvoiceStatus } from '../db.js'
 
 export const contractsRouter = Router()
+
+function parseAmount(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
 
 // POST /api/contracts — create invoice
 contractsRouter.post('/contracts', async (req: Request, res: Response) => {
   try {
     const {
-      issuerAddress, issuerFirstName, issuerLastName, issuerCompany,
-      payerAddress, payerFirstName, payerLastName, payerCompany,
-      title, description, amount,
+      invoiceId,
+      issuerAddress,
+      issuerInfo,
+      payerAddress,
+      payerInfo,
+      title,
+      description,
+      amount,
+      currency,
+      status,
+      rejectionReason,
+      pdfHash,
+      createdAt,
     } = req.body
 
-    if (!issuerAddress || !payerAddress || !title || !description || amount == null) {
+    const parsedAmount = parseAmount(amount)
+    if (
+      !invoiceId || typeof invoiceId !== 'string' ||
+      !issuerAddress || typeof issuerAddress !== 'string' ||
+      !payerAddress || typeof payerAddress !== 'string' ||
+      !title || typeof title !== 'string' ||
+      !description || typeof description !== 'string' ||
+      parsedAmount == null || parsedAmount <= 0 ||
+      !currency || typeof currency !== 'string' ||
+      !status || typeof status !== 'string' ||
+      !pdfHash || typeof pdfHash !== 'string'
+    ) {
       res.status(400).json({ error: 'Missing required fields' })
       return
     }
 
-    const doc: Record<string, unknown> = {
+    const now = new Date().toISOString()
+    const doc: InvoiceDoc = {
+      invoiceId,
       issuerAddress,
       payerAddress,
+      issuerInfo: issuerInfo && typeof issuerInfo === 'object' ? issuerInfo : undefined,
+      payerInfo: payerInfo && typeof payerInfo === 'object' ? payerInfo : undefined,
       title,
       description,
-      amount:    Number(amount),
-      currency:  'USDC',
-      status:    'sent',
-      createdAt: new Date().toISOString(),
+      amount: parsedAmount,
+      currency,
+      status: status as InvoiceStatus,
+      rejectionReason: rejectionReason ?? null,
+      pdfHash,
+      createdAt: typeof createdAt === 'string' ? createdAt : now,
+      updatedAt: now,
     }
 
-    if (issuerFirstName) doc.issuerFirstName = issuerFirstName
-    if (issuerLastName)  doc.issuerLastName  = issuerLastName
-    if (issuerCompany)   doc.issuerCompany   = issuerCompany
-    if (payerFirstName)  doc.payerFirstName  = payerFirstName
-    if (payerLastName)   doc.payerLastName   = payerLastName
-    if (payerCompany)    doc.payerCompany    = payerCompany
-
-    const id = db.insert(doc)
-    res.status(201).json({ ok: true, id })
+    const id = await db.create(doc)
+    const created = await db.getById(id)
+    res.status(201).json({ ok: true, id, invoice: created ? toPublicInvoice(created) : null })
   } catch (err) {
     console.error('[POST /api/contracts]', err)
     res.status(500).json({ error: 'Failed to create invoice' })
@@ -52,13 +83,45 @@ contractsRouter.get('/contracts', async (req: Request, res: Response) => {
       return
     }
 
-    const docs = db.query(
-      (doc) => doc.issuerAddress === address || doc.payerAddress === address
-    )
-
-    res.json(docs)
+    const docs = await db.listByAddress(address)
+    res.json(docs.map(toPublicInvoice))
   } catch (err) {
     console.error('[GET /api/contracts]', err)
     res.status(500).json({ error: 'Failed to fetch invoices' })
+  }
+})
+
+// GET /api/contracts/:id — invoice detail
+contractsRouter.get('/contracts/:id', async (req: Request, res: Response) => {
+  try {
+    const doc = await db.getById(req.params.id)
+    if (!doc) {
+      res.status(404).json({ error: 'Invoice not found' })
+      return
+    }
+    res.json(toPublicInvoice(doc))
+  } catch (err) {
+    console.error('[GET /api/contracts/:id]', err)
+    res.status(500).json({ error: 'Failed to fetch invoice' })
+  }
+})
+
+// PATCH /api/contracts/:id — partial update (status, rejectionReason, payment, ...)
+contractsRouter.patch('/contracts/:id', async (req: Request, res: Response) => {
+  try {
+    const patch: Partial<InvoiceDoc> = {}
+    if (req.body.status != null) patch.status = req.body.status
+    if (req.body.rejectionReason !== undefined) patch.rejectionReason = req.body.rejectionReason
+    if (req.body.payment !== undefined) patch.payment = req.body.payment
+
+    const doc = await db.patchById(req.params.id, patch)
+    if (!doc) {
+      res.status(404).json({ error: 'Invoice not found' })
+      return
+    }
+    res.json({ ok: true, invoice: toPublicInvoice(doc) })
+  } catch (err) {
+    console.error('[PATCH /api/contracts/:id]', err)
+    res.status(500).json({ error: 'Failed to update invoice' })
   }
 })

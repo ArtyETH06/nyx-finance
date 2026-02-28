@@ -14,8 +14,10 @@
   "dependencies": {
     "@unlink-xyz/react": "^0.1.8",
     "cors": "^2.8.6",
+    "crypto-js": "^4.2.0",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
+    "jspdf": "^4.2.0",
     "lucide-react": "^0.575.0",
     "mongodb": "^7.1.0",
     "react": "^18.3.1",

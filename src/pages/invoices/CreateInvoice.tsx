@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUnlink } from '@unlink-xyz/react'
 import { toast } from '../../lib/toast'
+import { buildInvoicePdf, downloadPdf, sha256Blob } from '../../lib/invoicePdf'
+import { makeInvoiceId } from '../../lib/invoices'
 
 interface FormState {
   issuerFirstName: string
@@ -89,24 +91,70 @@ export default function CreateInvoice() {
       setFormError('Please enter a valid amount.')
       return
     }
+    if (!activeAccount?.address) {
+      setFormError('Wallet is not ready.')
+      return
+    }
 
     setSubmitting(true)
     try {
+      const invoiceId = makeInvoiceId()
+      const issueDate = new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      })
+      const createdAt = new Date().toISOString()
+
+      const doc = buildInvoicePdf({
+        invoiceId,
+        issueDate,
+        issuerAddress: activeAccount.address,
+        issuerInfo: {
+          firstName: form.issuerFirstName || undefined,
+          lastName: form.issuerLastName || undefined,
+          company: form.issuerCompany || undefined,
+        },
+        payerAddress: form.payerAddress.trim(),
+        payerInfo: {
+          firstName: form.payerFirstName || undefined,
+          lastName: form.payerLastName || undefined,
+          company: form.payerCompany || undefined,
+        },
+        title: form.title.trim(),
+        description: form.description.trim(),
+        amount,
+        currency: 'USDC',
+      })
+
+      const pdfBlob = doc.output('blob')
+      const pdfHash = await sha256Blob(pdfBlob)
+
       const res = await fetch('/api/contracts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          issuerAddress:   activeAccount?.address,
-          issuerFirstName: form.issuerFirstName || undefined,
-          issuerLastName:  form.issuerLastName  || undefined,
-          issuerCompany:   form.issuerCompany   || undefined,
-          payerAddress:    form.payerAddress.trim(),
-          payerFirstName:  form.payerFirstName  || undefined,
-          payerLastName:   form.payerLastName   || undefined,
-          payerCompany:    form.payerCompany    || undefined,
+          invoiceId,
+          issuerAddress: activeAccount.address,
+          issuerInfo: {
+            firstName: form.issuerFirstName || undefined,
+            lastName: form.issuerLastName || undefined,
+            company: form.issuerCompany || undefined,
+          },
+          payerAddress: form.payerAddress.trim(),
+          payerInfo: {
+            firstName: form.payerFirstName || undefined,
+            lastName: form.payerLastName || undefined,
+            company: form.payerCompany || undefined,
+          },
           title:       form.title.trim(),
           description: form.description.trim(),
           amount,
+          currency: 'USDC',
+          status: 'sent',
+          rejectionReason: null,
+          pdfHash,
+          createdAt,
         }),
       })
 
@@ -115,6 +163,7 @@ export default function CreateInvoice() {
         throw new Error(data.error ?? 'Failed to create invoice')
       }
 
+      downloadPdf(pdfBlob, `${invoiceId}.pdf`)
       toast.show('Invoice created successfully.')
       navigate('/invoices')
     } catch (err) {
