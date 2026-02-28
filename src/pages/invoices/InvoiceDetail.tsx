@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { parseAmount, useUnlink } from '@unlink-xyz/react'
-import { ArrowLeft, Check, CircleDollarSign, X } from 'lucide-react'
+import { ArrowLeft, Check, CircleDollarSign, Download, Loader2, X } from 'lucide-react'
 import { toast } from '../../lib/toast'
 import type { Invoice } from '../../lib/invoices'
-import { fmtPartyName } from '../../lib/invoices'
-import { USDC } from '../../lib/tokens'
+import { fmtPartyName, formatIssueDate } from '../../lib/invoices'
+import { buildInvoicePdf, downloadPdf, sha256Blob } from '../../lib/invoicePdf'
+import { USDC, USDT, NATIVE_TOKEN_ADDRESS, getTokenByAddress } from '../../lib/tokens'
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-function fmtMoney(amount: number, currency: string) {
-  return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`
+function fmtMoney(amount: number, symbol: string) {
+  return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${symbol}`
 }
 
 function shortAddress(address: string) {
@@ -20,17 +21,50 @@ function shortAddress(address: string) {
   return `${address.slice(0, 8)}…${address.slice(-6)}`
 }
 
+function normalizeInvoice(raw: Record<string, unknown>): Invoice {
+  const legacyCurrency = String(raw.currencySymbol ?? raw.tokenSymbol ?? raw.currency ?? 'USDCm')
+  let tokenAddress = typeof raw.tokenAddress === 'string' ? raw.tokenAddress : ''
+  let tokenSymbol = typeof raw.tokenSymbol === 'string' ? raw.tokenSymbol : legacyCurrency
+
+  if (!tokenAddress) {
+    if (legacyCurrency === 'USDTm') {
+      tokenAddress = USDT.address
+      tokenSymbol = 'USDTm'
+    } else if (legacyCurrency === 'MON') {
+      tokenAddress = NATIVE_TOKEN_ADDRESS
+      tokenSymbol = 'MON'
+    } else {
+      tokenAddress = USDC.address
+      tokenSymbol = 'USDCm'
+    }
+  }
+
+  return {
+    _id: String(raw._id ?? ''),
+    invoiceId: String(raw.invoiceId ?? raw._id ?? ''),
+    issuerAddress: String(raw.issuerAddress ?? ''),
+    payerAddress: String(raw.payerAddress ?? ''),
+    issuerInfo: (raw.issuerInfo as Invoice['issuerInfo']) ?? undefined,
+    payerInfo: (raw.payerInfo as Invoice['payerInfo']) ?? undefined,
+    title: String(raw.title ?? ''),
+    description: String(raw.description ?? ''),
+    amount: Number(raw.amount ?? 0),
+    tokenAddress,
+    tokenSymbol,
+    currencySymbol: typeof raw.currencySymbol === 'string' ? raw.currencySymbol : tokenSymbol,
+    status: (raw.status as Invoice['status']) ?? 'sent',
+    rejectionReason: (raw.rejectionReason as string | null) ?? null,
+    pdfHash: String(raw.pdfHash ?? ''),
+    createdAt: String(raw.createdAt ?? new Date().toISOString()),
+    updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : undefined,
+    payment: (raw.payment as Invoice['payment']) ?? undefined,
+  }
+}
+
 export default function InvoiceDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const {
-    activeAccount,
-    send,
-    deposit,
-    waitForConfirmation,
-    refresh,
-    balances,
-  } = useUnlink()
+  const { activeAccount, send, deposit, waitForConfirmation, refresh, balances } = useUnlink()
 
   const [invoice, setInvoice] = useState<Invoice | null>(null)
   const [loading, setLoading] = useState(true)
@@ -40,7 +74,7 @@ export default function InvoiceDetail() {
   const [showReject, setShowReject] = useState(false)
   const [showFundModal, setShowFundModal] = useState(false)
   const [publicAddress, setPublicAddress] = useState<string | null>(null)
-  const [payRetryRequested, setPayRetryRequested] = useState(false)
+  const [txStatusText, setTxStatusText] = useState<string | null>(null)
 
   const balancesRef = useRef(balances)
   useEffect(() => { balancesRef.current = balances }, [balances])
@@ -48,11 +82,21 @@ export default function InvoiceDetail() {
   const address = activeAccount?.address ?? ''
   const isIssuer = !!invoice && invoice.issuerAddress === address
   const isPayer = !!invoice && invoice.payerAddress === address
-  const usdcBalance = useMemo(() => balances[USDC.address] ?? 0n, [balances])
+
+  const token = useMemo(
+    () => (invoice ? getTokenByAddress(invoice.tokenAddress) : undefined),
+    [invoice]
+  )
+  const tokenDecimals = token?.decimals ?? 18
+  const tokenAddress = invoice?.tokenAddress ?? ''
+  const privateTokenBalance = useMemo(
+    () => (tokenAddress ? balances[tokenAddress] ?? 0n : 0n),
+    [balances, tokenAddress]
+  )
   const requiredAmount = useMemo(() => {
     if (!invoice) return 0n
-    return parseAmount(String(invoice.amount), USDC.decimals)
-  }, [invoice])
+    return parseAmount(String(invoice.amount), tokenDecimals)
+  }, [invoice, tokenDecimals])
 
   const loadInvoice = useCallback(async () => {
     if (!id) return
@@ -60,14 +104,33 @@ export default function InvoiceDetail() {
     setError(null)
     try {
       const res = await fetch(`/api/contracts/${id}`)
-      if (!res.ok) throw new Error('Failed to load invoice')
-      setInvoice(await res.json())
+      if (res.ok) {
+        const data = await res.json() as Record<string, unknown>
+        setInvoice(normalizeInvoice(data))
+        return
+      }
+
+      // Backward compatibility for older API versions that don't expose
+      // GET /api/contracts/:id (or return 404 for legacy id formats).
+      if (res.status === 404 && address) {
+        const listRes = await fetch(`/api/contracts?address=${encodeURIComponent(address)}`)
+        if (!listRes.ok) throw new Error('Failed to load invoice')
+        const listRaw = await listRes.json() as Record<string, unknown>[]
+        const list = listRaw.map(normalizeInvoice)
+        const match = list.find((inv) => inv._id === id || inv.invoiceId === id)
+        if (match) {
+          setInvoice(match)
+          return
+        }
+      }
+
+      throw new Error('Failed to load invoice')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unknown error')
     } finally {
       setLoading(false)
     }
-  }, [id])
+  }, [id, address])
 
   useEffect(() => { void loadInvoice() }, [loadInvoice])
 
@@ -88,6 +151,7 @@ export default function InvoiceDetail() {
 
   async function handleAccept() {
     setBusy(true)
+    setTxStatusText('Waiting for API confirmation...')
     try {
       await patchInvoice({ status: 'accepted', rejectionReason: null })
       toast.show('Invoice accepted.')
@@ -95,6 +159,7 @@ export default function InvoiceDetail() {
       toast.show(e instanceof Error ? e.message : 'Accept failed', 'error')
     } finally {
       setBusy(false)
+      setTxStatusText(null)
     }
   }
 
@@ -104,6 +169,7 @@ export default function InvoiceDetail() {
       return
     }
     setBusy(true)
+    setTxStatusText('Waiting for API confirmation...')
     try {
       await patchInvoice({ status: 'rejected', rejectionReason: rejectReason.trim() })
       setShowReject(false)
@@ -113,6 +179,7 @@ export default function InvoiceDetail() {
       toast.show(e instanceof Error ? e.message : 'Reject failed', 'error')
     } finally {
       setBusy(false)
+      setTxStatusText(null)
     }
   }
 
@@ -125,28 +192,98 @@ export default function InvoiceDetail() {
     setPublicAddress(accounts[0] ?? null)
   }
 
+  async function waitForPublicTxConfirmation(txHash: string): Promise<void> {
+    if (!window.ethereum) throw new Error('No wallet provider found')
+    const maxTries = 60
+    for (let i = 0; i < maxTries; i += 1) {
+      const receipt = await window.ethereum.request({
+        method: 'eth_getTransactionReceipt',
+        params: [txHash],
+      }) as { status?: string } | null
+      if (receipt) {
+        if (receipt.status === '0x1') return
+        throw new Error('Deposit transaction failed on-chain')
+      }
+      await sleep(2000)
+    }
+    throw new Error('Timed out waiting for deposit confirmation')
+  }
+
   async function waitForPrivateFunds(required: bigint): Promise<boolean> {
-    const maxTries = 20
+    const maxTries = 30
     for (let i = 0; i < maxTries; i += 1) {
       await refresh()
-      if ((balancesRef.current[USDC.address] ?? 0n) >= required) return true
+      if ((balancesRef.current[tokenAddress] ?? 0n) >= required) return true
       await sleep(1500)
     }
     return false
+  }
+
+  async function executePaymentFlow() {
+    if (!invoice) return
+    setTxStatusText('Sending private payment...')
+    const result = await send([{
+      token: tokenAddress,
+      recipient: invoice.issuerAddress,
+      amount: requiredAmount,
+    }])
+
+    setTxStatusText('Waiting for Unlink confirmation...')
+    const status = await waitForConfirmation(result.relayId, { timeout: 180000 })
+
+    setTxStatusText('Updating invoice status...')
+    await patchInvoice({
+      status: 'paid',
+      rejectionReason: null,
+      payment: {
+        relayId: result.relayId,
+        txHash: status.txHash,
+        paidAt: new Date().toISOString(),
+      },
+    })
+
+    await refresh()
+    toast.show(
+      `Payment confirmed. Relay ID: ${result.relayId}`,
+      'success',
+      status.txHash ? `https://testnet.monadexplorer.com/tx/${status.txHash}` : undefined,
+    )
+  }
+
+  async function handlePay() {
+    if (!invoice) return
+    if (invoice.status === 'paid') return
+
+    setBusy(true)
+    try {
+      const localBalance = balancesRef.current[tokenAddress] ?? 0n
+      if (localBalance < requiredAmount) {
+        setShowFundModal(true)
+        return
+      }
+      await executePaymentFlow()
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : 'Payment failed', 'error')
+    } finally {
+      setBusy(false)
+      setTxStatusText(null)
+    }
   }
 
   async function fundAndPay() {
     if (!publicAddress || !invoice) return
     setBusy(true)
     try {
-      const missing = requiredAmount > usdcBalance ? requiredAmount - usdcBalance : 0n
+      const localBalance = balancesRef.current[tokenAddress] ?? 0n
+      const missing = requiredAmount > localBalance ? requiredAmount - localBalance : 0n
       if (missing <= 0n) {
         setShowFundModal(false)
-        setPayRetryRequested(true)
+        await executePaymentFlow()
         return
       }
 
-      const depositResult = await deposit([{ token: USDC.address, amount: missing, depositor: publicAddress }]) as
+      setTxStatusText('Preparing deposit...')
+      const depositResult = await deposit([{ token: tokenAddress, amount: missing, depositor: publicAddress }]) as
         | { to: string; calldata: string; value?: string | bigint }
         | undefined
       if (!depositResult) throw new Error('No deposit payload returned')
@@ -163,74 +300,55 @@ export default function InvoiceDetail() {
         txParams.value = depositResult.value
       }
 
-      await window.ethereum.request({
+      setTxStatusText('Submitting deposit transaction...')
+      const depositTxHash = await window.ethereum.request({
         method: 'eth_sendTransaction',
         params: [txParams],
-      })
+      }) as string
 
+      setTxStatusText('Waiting for deposit confirmation...')
+      await waitForPublicTxConfirmation(depositTxHash)
+
+      setTxStatusText('Refreshing private balance...')
       const funded = await waitForPrivateFunds(requiredAmount)
-      if (!funded) {
-        throw new Error('Deposit sent, but private balance has not synced yet. Please retry Pay.')
-      }
+      if (!funded) throw new Error('Deposit confirmed, but private balance sync is still pending.')
 
       setShowFundModal(false)
-      setPayRetryRequested(true)
-      toast.show('Deposit confirmed in private balance. Retrying payment...')
+      await executePaymentFlow()
     } catch (e) {
       toast.show(e instanceof Error ? e.message : 'Fund & Pay failed', 'error')
     } finally {
       setBusy(false)
+      setTxStatusText(null)
     }
   }
 
-  async function handlePay() {
+  async function handleDownloadPdf() {
     if (!invoice) return
-    if (invoice.status === 'paid') return
-
-    setBusy(true)
     try {
-      const localBalance = balancesRef.current[USDC.address] ?? 0n
-      if (localBalance < requiredAmount) {
-        setShowFundModal(true)
-        return
-      }
-
-      const result = await send([{
-        token: USDC.address,
-        recipient: invoice.issuerAddress,
-        amount: requiredAmount,
-      }])
-      const status = await waitForConfirmation(result.relayId, { timeout: 120000 })
-
-      await patchInvoice({
-        status: 'paid',
-        rejectionReason: null,
-        payment: {
-          relayId: result.relayId,
-          txHash: status.txHash,
-          paidAt: new Date().toISOString(),
-        },
+      const pdf = buildInvoicePdf({
+        invoiceId: invoice.invoiceId,
+        issueDate: formatIssueDate(invoice.createdAt),
+        issuerAddress: invoice.issuerAddress,
+        issuerInfo: invoice.issuerInfo,
+        payerAddress: invoice.payerAddress,
+        payerInfo: invoice.payerInfo,
+        title: invoice.title,
+        description: invoice.description,
+        amount: invoice.amount,
+        tokenSymbol: invoice.tokenSymbol,
+        statusText: 'SENT',
       })
-
-      await refresh()
-      toast.show(
-        `Payment confirmed. Relay ID: ${result.relayId}`,
-        'success',
-        status.txHash ? `https://testnet.monadexplorer.com/tx/${status.txHash}` : undefined,
-      )
+      const blob = pdf.output('blob')
+      const regeneratedHash = await sha256Blob(blob)
+      if (regeneratedHash !== invoice.pdfHash) {
+        toast.show('Warning: regenerated PDF hash differs from stored hash.', 'error')
+      }
+      downloadPdf(blob, `${invoice.invoiceId}.pdf`)
     } catch (e) {
-      toast.show(e instanceof Error ? e.message : 'Payment failed', 'error')
-    } finally {
-      setBusy(false)
-      setPayRetryRequested(false)
+      toast.show(e instanceof Error ? e.message : 'Failed to generate PDF', 'error')
     }
   }
-
-  useEffect(() => {
-    if (payRetryRequested && !busy) {
-      void handlePay()
-    }
-  }, [payRetryRequested, busy])
 
   if (loading) {
     return <main className="px-8 py-10 max-w-4xl text-nyx-muted text-sm">Loading invoice...</main>
@@ -267,7 +385,8 @@ export default function InvoiceDetail() {
             <span className="text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-md bg-[rgba(108,92,231,0.12)] text-nyx-accent">
               {invoice.status}
             </span>
-            <p className="text-nyx-text font-semibold mt-3">{fmtMoney(invoice.amount, invoice.currency)}</p>
+            <p className="text-nyx-text font-semibold mt-3">{fmtMoney(invoice.amount, invoice.tokenSymbol)}</p>
+            <p className="text-nyx-muted text-xs mt-1 font-mono">{shortAddress(invoice.tokenAddress)}</p>
           </div>
         </div>
 
@@ -294,6 +413,10 @@ export default function InvoiceDetail() {
             <p className="text-nyx-text text-sm leading-relaxed">{invoice.description}</p>
           </div>
           <div>
+            <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Token</p>
+            <p className="text-nyx-text text-sm">{invoice.tokenSymbol}</p>
+          </div>
+          <div>
             <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">PDF Hash</p>
             <p className="font-mono text-nyx-muted text-xs break-all">{invoice.pdfHash}</p>
           </div>
@@ -304,7 +427,19 @@ export default function InvoiceDetail() {
             </div>
           )}
         </div>
+
+        <button onClick={handleDownloadPdf} disabled={busy} className="btn-secondary mt-5">
+          <Download size={13} strokeWidth={1.5} />
+          Download PDF
+        </button>
       </div>
+
+      {txStatusText && (
+        <div className="nyx-card p-4 flex items-center gap-2 text-nyx-muted text-sm">
+          <Loader2 size={14} className="animate-spin text-nyx-accent" />
+          {txStatusText}
+        </div>
+      )}
 
       {isPayer && (
         <div className="nyx-card p-6">
@@ -316,11 +451,7 @@ export default function InvoiceDetail() {
                 <Check size={13} strokeWidth={1.5} />
                 {busy ? 'Processing...' : 'Accept'}
               </button>
-              <button
-                onClick={() => setShowReject((v) => !v)}
-                disabled={busy}
-                className="btn-danger"
-              >
+              <button onClick={() => setShowReject((v) => !v)} disabled={busy} className="btn-danger">
                 <X size={13} strokeWidth={1.5} />
                 Reject
               </button>
@@ -379,10 +510,10 @@ export default function InvoiceDetail() {
           <div className="nyx-card p-6 w-full max-w-md">
             <p className="text-xl font-semibold text-nyx-text mb-2">Insufficient private balance</p>
             <p className="text-nyx-muted text-sm mb-4">
-              You need {fmtMoney(invoice.amount, invoice.currency)} in private USDC to pay this invoice.
+              You need {fmtMoney(invoice.amount, invoice.tokenSymbol)} in private {invoice.tokenSymbol} to pay this invoice.
             </p>
             <p className="text-nyx-muted text-xs mb-4">
-              Current private balance: {Number(usdcBalance) / 10 ** USDC.decimals}
+              Current private balance: {Number(privateTokenBalance) / 10 ** tokenDecimals}
             </p>
 
             {!publicAddress ? (
@@ -393,7 +524,7 @@ export default function InvoiceDetail() {
               <div className="space-y-3">
                 <p className="text-nyx-muted text-xs">Connected: <span className="font-mono">{shortAddress(publicAddress)}</span></p>
                 <button onClick={fundAndPay} disabled={busy} className="btn-primary">
-                  {busy ? 'Funding...' : 'Fund & Pay'}
+                  {busy ? 'Processing...' : 'Fund & Pay'}
                 </button>
               </div>
             )}

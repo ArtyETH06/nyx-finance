@@ -1,9 +1,9 @@
-import { MongoClient, ObjectId } from 'mongodb'
+import { MongoClient, ObjectId, type Filter } from 'mongodb'
 
 export type InvoiceStatus = 'sent' | 'accepted' | 'rejected' | 'paid'
 
 export interface InvoiceDoc {
-  _id?: ObjectId
+  _id?: ObjectId | string
   invoiceId: string
   issuerAddress: string
   payerAddress: string
@@ -20,7 +20,9 @@ export interface InvoiceDoc {
   title: string
   description: string
   amount: number
-  currency: string
+  tokenAddress: string
+  tokenSymbol: string
+  currencySymbol: string
   status: InvoiceStatus
   rejectionReason: string | null
   pdfHash: string
@@ -51,6 +53,25 @@ function toObjectId(id: string): ObjectId | null {
   return ObjectId.isValid(id) ? new ObjectId(id) : null
 }
 
+function idFilter(id: string): Filter<InvoiceDoc> {
+  const byObjectId = toObjectId(id)
+  if (byObjectId) {
+    return {
+      $or: [
+        { _id: byObjectId },
+        { _id: id },
+        { invoiceId: id },
+      ],
+    }
+  }
+  return {
+    $or: [
+      { _id: id },
+      { invoiceId: id },
+    ],
+  }
+}
+
 export function toPublicInvoice(doc: InvoiceDoc) {
   return {
     ...doc,
@@ -79,20 +100,16 @@ export const db = {
   },
 
   async getById(id: string): Promise<InvoiceDoc | null> {
-    const oid = toObjectId(id)
-    if (!oid) return null
     const col = await getCollection()
-    return col.findOne({ _id: oid })
+    return col.findOne(idFilter(id))
   },
 
   async patchById(id: string, patch: Partial<InvoiceDoc>): Promise<InvoiceDoc | null> {
-    const oid = toObjectId(id)
-    if (!oid) return null
     const col = await getCollection()
     await col.updateOne(
-      { _id: oid },
+      idFilter(id),
       { $set: { ...patch, updatedAt: new Date().toISOString() } }
     )
-    return col.findOne({ _id: oid })
+    return col.findOne(idFilter(id))
   },
 }

@@ -14,7 +14,8 @@ interface InvoicePdfInput {
   title: string
   description: string
   amount: number
-  currency: string
+  tokenSymbol: string
+  statusText?: string
 }
 
 function partyLine(info: InvoicePartyInfo | undefined, address: string): string[] {
@@ -28,6 +29,7 @@ function partyLine(info: InvoicePartyInfo | undefined, address: string): string[
 
 export function buildInvoicePdf(input: InvoicePdfInput): jsPDF {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' })
+  doc.setCreationDate(new Date(`${input.issueDate}T00:00:00.000Z`))
   const pageWidth = doc.internal.pageSize.getWidth()
   const left = 44
   const right = pageWidth - 44
@@ -44,7 +46,7 @@ export function buildInvoicePdf(input: InvoicePdfInput): jsPDF {
   doc.setFontSize(10)
   doc.text('Private Finance on Monad', left, 62)
   doc.text(`Issue Date: ${input.issueDate}`, right, 44, { align: 'right' })
-  doc.text('Status: SENT', right, 62, { align: 'right' })
+  doc.text(`Status: ${input.statusText ?? 'SENT'}`, right, 62, { align: 'right' })
 
   doc.setTextColor(17, 26, 53)
   doc.setFont('helvetica', 'bold')
@@ -67,7 +69,8 @@ export function buildInvoicePdf(input: InvoicePdfInput): jsPDF {
 
   row('Title', input.title)
   row('Description', input.description)
-  row('Amount', `${input.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${input.currency}`)
+  row('Amount', `${input.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${input.tokenSymbol}`)
+  row('Token', input.tokenSymbol)
 
   y += 10
   doc.setFont('helvetica', 'bold')

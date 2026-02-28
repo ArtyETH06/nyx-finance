@@ -16,7 +16,9 @@ export interface Invoice {
   title: string
   description: string
   amount: number
-  currency: string
+  tokenAddress: string
+  tokenSymbol: string
+  currencySymbol: string
   status: InvoiceStatus
   rejectionReason: string | null
   pdfHash: string
@@ -42,4 +44,8 @@ export function makeInvoiceId(now = new Date()): string {
 export function fmtPartyName(info?: InvoicePartyInfo): string {
   const full = [info?.firstName, info?.lastName].filter(Boolean).join(' ').trim()
   return full || info?.company || '—'
+}
+
+export function formatIssueDate(iso: string): string {
+  return new Date(iso).toISOString().slice(0, 10)
 }

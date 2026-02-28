@@ -12,8 +12,8 @@ const STATUS_STYLES: Record<Invoice['status'], string> = {
   paid:  'bg-[rgba(34,197,94,0.12)]  text-nyx-success',
 }
 
-function formatAmount(amount: number, currency: string) {
-  return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`
+function formatAmount(amount: number, symbol: string) {
+  return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${symbol}`
 }
 
 function formatDate(iso: string) {
@@ -115,7 +115,7 @@ export default function InvoiceDashboard() {
             return (
               <button
                 key={inv._id}
-                onClick={() => navigate(`/invoices/${inv._id}`)}
+                onClick={() => navigate(`/invoices/${inv._id || inv.invoiceId}`)}
                 className="nyx-card p-5 flex items-center justify-between gap-4 w-full text-left"
               >
                 {/* Role icon */}
@@ -162,7 +162,7 @@ export default function InvoiceDashboard() {
 
                 {/* Amount */}
                 <p className="text-nyx-text text-sm font-semibold flex-shrink-0 tabular-nums">
-                  {formatAmount(inv.amount, inv.currency)}
+                  {formatAmount(inv.amount, inv.tokenSymbol ?? inv.currencySymbol ?? 'TOKEN')}
                 </p>
               </button>
             )

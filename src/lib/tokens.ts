@@ -40,8 +40,32 @@ export const TOKENS: Token[] = [
 ]
 
 export const USDC = TOKENS.find(t => t.symbol === 'USDCm')!
+export const USDT = TOKENS.find(t => t.symbol === 'USDTm')!
 
-export function getTokenByAddress(address: string): Token | undefined {
+export interface InvoiceTokenOption {
+  symbol: 'UNLKm' | 'USDCm' | 'USDTm' | 'MON'
+  address: string
+  decimals: number
+}
+
+export type InvoiceTokenSymbol = InvoiceTokenOption['symbol']
+
+// Invoice token options aligned with wallet deposit/withdraw tokens.
+export const INVOICE_TOKEN_OPTIONS: InvoiceTokenOption[] = [
+  { symbol: 'UNLKm', address: TOKENS.find((t) => t.symbol === 'UNLKm')!.address, decimals: TOKENS.find((t) => t.symbol === 'UNLKm')!.decimals },
+  { symbol: 'USDCm', address: USDC.address, decimals: USDC.decimals },
+  { symbol: 'USDTm', address: USDT.address, decimals: USDT.decimals },
+  { symbol: 'MON', address: NATIVE_TOKEN_ADDRESS, decimals: 18 },
+]
+
+export function getInvoiceTokenBySymbol(symbol: InvoiceTokenSymbol): InvoiceTokenOption {
+  const found = INVOICE_TOKEN_OPTIONS.find((t) => t.symbol === symbol)
+  if (!found) return INVOICE_TOKEN_OPTIONS[0]
+  return found
+}
+
+export function getTokenByAddress(address?: string | null): Token | undefined {
+  if (!address) return undefined
   return TOKENS.find((t) => t.address.toLowerCase() === address.toLowerCase())
 }
 

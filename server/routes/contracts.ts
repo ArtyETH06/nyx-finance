@@ -24,7 +24,9 @@ contractsRouter.post('/contracts', async (req: Request, res: Response) => {
       title,
       description,
       amount,
-      currency,
+      tokenAddress,
+      tokenSymbol,
+      currencySymbol,
       status,
       rejectionReason,
       pdfHash,
@@ -39,7 +41,9 @@ contractsRouter.post('/contracts', async (req: Request, res: Response) => {
       !title || typeof title !== 'string' ||
       !description || typeof description !== 'string' ||
       parsedAmount == null || parsedAmount <= 0 ||
-      !currency || typeof currency !== 'string' ||
+      !tokenAddress || typeof tokenAddress !== 'string' ||
+      !tokenSymbol || typeof tokenSymbol !== 'string' ||
+      !currencySymbol || typeof currencySymbol !== 'string' ||
       !status || typeof status !== 'string' ||
       !pdfHash || typeof pdfHash !== 'string'
     ) {
@@ -57,7 +61,9 @@ contractsRouter.post('/contracts', async (req: Request, res: Response) => {
       title,
       description,
       amount: parsedAmount,
-      currency,
+      tokenAddress,
+      tokenSymbol,
+      currencySymbol,
       status: status as InvoiceStatus,
       rejectionReason: rejectionReason ?? null,
       pdfHash,

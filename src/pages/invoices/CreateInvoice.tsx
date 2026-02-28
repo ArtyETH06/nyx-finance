@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUnlink } from '@unlink-xyz/react'
 import { toast } from '../../lib/toast'
-import { buildInvoicePdf, downloadPdf, sha256Blob } from '../../lib/invoicePdf'
-import { makeInvoiceId } from '../../lib/invoices'
+import { buildInvoicePdf, sha256Blob } from '../../lib/invoicePdf'
+import { formatIssueDate, makeInvoiceId } from '../../lib/invoices'
+import { INVOICE_TOKEN_OPTIONS, getInvoiceTokenBySymbol, type InvoiceTokenSymbol } from '../../lib/tokens'
 
 interface FormState {
   issuerFirstName: string
@@ -16,19 +17,21 @@ interface FormState {
   title:           string
   description:     string
   amount:          string
+  tokenSymbol:     InvoiceTokenSymbol
 }
 
 const empty: FormState = {
-  issuerFirstName: '',
-  issuerLastName:  '',
-  issuerCompany:   '',
-  payerFirstName:  '',
-  payerLastName:   '',
-  payerCompany:    '',
-  payerAddress:    '',
-  title:           '',
-  description:     '',
-  amount:          '',
+  issuerFirstName: 'Captain',
+  issuerLastName:  'Ledgerbeard',
+  issuerCompany:   'Banana Analytics LLC',
+  payerFirstName:  'Sir',
+  payerLastName:   'Paymentsalot',
+  payerCompany:    'Moon Coffee DAO',
+  payerAddress:    'unlink1qytudx3dyhjfn7z6h8a84hw3tm2z02s2h2jxzuwr8g3vck2nxxmldz53jwtfr9y2j9pl3dqdujnugre7ppeh6vnyrcm7rq3zuy9hc2r2d59klrtyuayf6h4esna',
+  title:           'Emergency Coffee Refill Retainer',
+  description:     'Professional services: 7 espresso-fueled architecture reviews, 3 bug exorcisms, and 1 production incident pep talk.',
+  amount:          '42',
+  tokenSymbol:     'USDCm',
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -99,12 +102,9 @@ export default function CreateInvoice() {
     setSubmitting(true)
     try {
       const invoiceId = makeInvoiceId()
-      const issueDate = new Date().toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-      })
       const createdAt = new Date().toISOString()
+      const issueDate = formatIssueDate(createdAt)
+      const selectedToken = getInvoiceTokenBySymbol(form.tokenSymbol)
 
       const doc = buildInvoicePdf({
         invoiceId,
@@ -124,7 +124,8 @@ export default function CreateInvoice() {
         title: form.title.trim(),
         description: form.description.trim(),
         amount,
-        currency: 'USDC',
+        tokenSymbol: selectedToken.symbol,
+        statusText: 'SENT',
       })
 
       const pdfBlob = doc.output('blob')
@@ -150,7 +151,9 @@ export default function CreateInvoice() {
           title:       form.title.trim(),
           description: form.description.trim(),
           amount,
-          currency: 'USDC',
+          tokenAddress: selectedToken.address,
+          tokenSymbol: selectedToken.symbol,
+          currencySymbol: selectedToken.symbol,
           status: 'sent',
           rejectionReason: null,
           pdfHash,
@@ -163,9 +166,10 @@ export default function CreateInvoice() {
         throw new Error(data.error ?? 'Failed to create invoice')
       }
 
-      downloadPdf(pdfBlob, `${invoiceId}.pdf`)
       toast.show('Invoice created successfully.')
-      navigate('/invoices')
+      const data = await res.json()
+      const id = (data.invoice?._id ?? data.invoice?.invoiceId ?? data.id) as string
+      navigate(`/invoices/${id}`)
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Something went wrong.')
     } finally {
@@ -261,9 +265,17 @@ export default function CreateInvoice() {
                   placeholder="0.00"
                   required
                 />
-                <div className="flex-shrink-0 flex items-center px-4 bg-nyx-bg border border-[rgba(255,255,255,0.06)] rounded-lg text-nyx-muted text-sm font-mono select-none">
-                  USDC
-                </div>
+                <select
+                  className="flex-shrink-0 bg-nyx-bg border border-[rgba(255,255,255,0.06)] rounded-lg text-nyx-muted text-sm font-mono px-3 py-2.5 focus:outline-none focus:border-nyx-accent transition-colors duration-150"
+                  value={form.tokenSymbol}
+                  onChange={(e) => setForm((f) => ({ ...f, tokenSymbol: e.target.value as FormState['tokenSymbol'] }))}
+                >
+                  {INVOICE_TOKEN_OPTIONS.map((opt) => (
+                    <option key={opt.symbol} value={opt.symbol} style={{ backgroundColor: '#0E1428' }}>
+                      {opt.symbol}
+                    </option>
+                  ))}
+                </select>
               </div>
             </Field>
           </div>
