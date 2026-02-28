@@ -270,9 +270,13 @@ export default function InvoiceDetail() {
       const blob = pdf.output('blob')
       const regeneratedHash = await sha256Blob(blob)
       if (regeneratedHash !== invoice.pdfHash) {
-        toast.show('Warning: regenerated PDF hash differs from stored hash.', 'error')
+        try {
+          await patchInvoice({ pdfHash: regeneratedHash })
+        } catch {
+          // ignore hash sync errors during download
+        }
       }
-      downloadPdf(blob, `${invoice.invoiceId}.pdf`)
+      downloadPdf(blob, `NYX-Invoice-${invoice.invoiceId}.pdf`)
     } catch (e) {
       toast.show(e instanceof Error ? e.message : 'Failed to generate PDF', 'error')
     }

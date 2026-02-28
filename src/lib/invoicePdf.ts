@@ -176,17 +176,26 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<jsPDF> {
   if (logoDataUrl) {
     const logoWidth = 84
     const logoHeight = 28
-    const logoY = (headerHeight - logoHeight) / 2
+    const logoY = 18
     doc.addImage(logoDataUrl, 'PNG', left, logoY, logoWidth, logoHeight)
+
+    doc.setTextColor(160, 170, 188)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.text('Public blockchain. Private business.', left, logoY + logoHeight + 14)
   } else {
     doc.setTextColor(255, 255, 255)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(20)
-    doc.text('NYX', left, 48)
+    doc.text('NYX', left, 40)
+    doc.setTextColor(160, 170, 188)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.text('Public blockchain. Private business.', left, 56)
   }
 
   const badge = statusBadgeMeta(statusForPdf(input.status))
-  const badgeY = 34
+  const badgeY = headerHeight / 2
   const badgeCircleX = right - 130
   doc.setFillColor(badge.color[0], badge.color[1], badge.color[2])
   doc.circle(badgeCircleX, badgeY, 4, 'F')
@@ -284,15 +293,16 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<jsPDF> {
   doc.text('TOTAL', left, y)
   doc.text(`${fmtAmount(total)} ${input.tokenSymbol}`, right, y, { align: 'right' })
 
-  const footerY = pageHeight - 36
+  const footerLineY = pageHeight - 32
+  const footerTextY = (footerLineY + pageHeight) / 2 + 2
   doc.setDrawColor(...COLOR.lineLight)
   doc.setLineWidth(0.7)
-  doc.line(left, footerY - 14, right, footerY - 14)
+  doc.line(left, footerLineY, right, footerLineY)
 
   doc.setTextColor(...COLOR.textMuted)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
-  doc.text('NYX - Public Blockchain. Private Business', pageWidth / 2, footerY, { align: 'center' })
+  doc.text('NYX - Public Blockchain. Private Business', pageWidth / 2, footerTextY, { align: 'center' })
 
   return doc
 }

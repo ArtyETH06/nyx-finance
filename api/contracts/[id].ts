@@ -18,6 +18,7 @@ function pickPatch(body: any): Partial<InvoiceDoc> {
   if (body?.status != null) patch.status = body.status
   if (body?.rejectionReason !== undefined) patch.rejectionReason = body.rejectionReason
   if (body?.payment !== undefined) patch.payment = body.payment
+  if (body?.pdfHash !== undefined) patch.pdfHash = body.pdfHash
   return patch
 }
 

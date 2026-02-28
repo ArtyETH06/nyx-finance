@@ -165,6 +165,7 @@ contractsRouter.patch('/contracts/:id', async (req: Request, res: Response) => {
     if (req.body.status != null) patch.status = req.body.status
     if (req.body.rejectionReason !== undefined) patch.rejectionReason = req.body.rejectionReason
     if (req.body.payment !== undefined) patch.payment = req.body.payment
+    if (req.body.pdfHash !== undefined) patch.pdfHash = req.body.pdfHash
 
     const doc = await db.patchById(req.params.id, patch)
     if (!doc) {
@@ -187,6 +188,7 @@ contractsRouter.post('/contracts/:id/update', async (req: Request, res: Response
     if (req.body.status != null) patch.status = req.body.status
     if (req.body.rejectionReason !== undefined) patch.rejectionReason = req.body.rejectionReason
     if (req.body.payment !== undefined) patch.payment = req.body.payment
+    if (req.body.pdfHash !== undefined) patch.pdfHash = req.body.pdfHash
 
     const doc = await db.patchById(req.params.id, patch)
     if (!doc) {
@@ -213,6 +215,7 @@ contractsRouter.post('/contracts/update', async (req: Request, res: Response) =>
     if (req.body.status != null) patch.status = req.body.status
     if (req.body.rejectionReason !== undefined) patch.rejectionReason = req.body.rejectionReason
     if (req.body.payment !== undefined) patch.payment = req.body.payment
+    if (req.body.pdfHash !== undefined) patch.pdfHash = req.body.pdfHash
 
     const doc = await db.patchById(id, patch)
     if (!doc) {
