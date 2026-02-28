@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useUnlink } from '@unlink-xyz/react'
 import { loadProfile } from '../../lib/profile'
 import { toast } from '../../lib/toast'
@@ -29,11 +29,11 @@ const empty: FormState = {
   issuerFirstName: '',
   issuerLastName:  '',
   issuerCompany:   '',
-  payerFirstName:  '',
-  payerLastName:   '',
-  payerCompany:    '',
-  payerAddress:    '',
-  lineItems:       [{ title: '', description: '', amount: '' }],
+  payerFirstName:  'Alex',
+  payerLastName:   'Rivera',
+  payerCompany:    'NYX Labs',
+  payerAddress:    'unlink1qyv8z6lurqx2437m0udmdu5c643yczyfj3gxlsf28r4l4d5l0e6amz53jwtfr9y2jxag4yzmq5tgfnuvst9syrfma453s2hkmgzseggvzl55d9ytfkwzjh0wx8m',
+  lineItems:       [{ title: 'Smart Contract Development', description: 'Development of ERC-20 token contract and deployment on Monad testnet.', amount: '2500' }],
   tokenSymbol:     'USDCm',
 }
 
@@ -71,49 +71,20 @@ const inputCls =
 export default function CreateInvoice() {
   const { activeAccount } = useUnlink()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
   const [form, setForm] = useState<FormState>(empty)
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
-  // Pre-fill issuer from saved profile + payer/salary from URL query params
+  // Pre-fill issuer from saved profile
   useEffect(() => {
     const address = activeAccount?.address
     if (!address) return
     const p = loadProfile(address)
-
-    const payerAddress   = searchParams.get('payerAddress')   || ''
-    const payerFirstName = searchParams.get('payerFirstName') || ''
-    const payerLastName  = searchParams.get('payerLastName')  || ''
-    const payerCompany   = searchParams.get('payerCompany')   || ''
-    const amount         = searchParams.get('amount')         || ''
-    const currency       = searchParams.get('currency')       || ''
-    const schedule       = searchParams.get('schedule')       || ''
-
-    const scheduleLabel = schedule === 'weekly' ? 'Weekly' : schedule === 'biweekly' ? 'Bi-weekly' : schedule === 'monthly' ? 'Monthly' : ''
-    const title       = payerFirstName ? `${scheduleLabel} salary — ${payerFirstName} ${payerLastName}`.trim() : ''
-    const description = payerCompany   ? `${scheduleLabel} salary payment for ${payerCompany}`.trim() : ''
-
-    // Map org salary currency to invoice token symbol
-    const currencyToToken: Record<string, InvoiceTokenSymbol> = {
-      USDC: 'USDCm', USDCm: 'USDCm',
-      USDT: 'USDTm', USDTm: 'USDTm',
-      MON:  'MON',
-      ETH:  'MON',  // fallback to MON on Monad
-    }
-    const tokenSymbol = (currencyToToken[currency] ?? 'USDCm') as InvoiceTokenSymbol
-
     setForm((f) => ({
       ...f,
       issuerFirstName: p.firstName || f.issuerFirstName,
       issuerLastName:  p.lastName  || f.issuerLastName,
       issuerCompany:   p.company   || f.issuerCompany,
-      payerAddress,
-      payerFirstName,
-      payerLastName,
-      payerCompany,
-      tokenSymbol: currency ? tokenSymbol : f.tokenSymbol,
-      lineItems: amount ? [{ title, description, amount }] : f.lineItems,
     }))
   }, [activeAccount?.address])
 

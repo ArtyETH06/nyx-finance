@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { toast } from '../../lib/toast'
 import { buildPayrollPdf, sha256Blob, downloadPdf } from '../../lib/payrollPdf'
-import { NATIVE_TOKEN_ADDRESS } from '../../lib/tokens'
+import { INVOICE_TOKEN_OPTIONS } from '../../lib/tokens'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -62,15 +62,11 @@ interface ScheduledPayment {
 
 // ─── Token resolution ─────────────────────────────────────────────────────────
 
-const PAYROLL_TOKEN_MAP: Record<string, { address: string; decimals: number }> = {
-  USDC: { address: '0xc4fb617e4e4cfbdeb07216dff62b4e46a2d6fdf6', decimals: 18 },
-  USDT: { address: '0x86b6341d3c56bc379697d247fc080f5f2c8eed7b', decimals: 18 },
-  MON:  { address: NATIVE_TOKEN_ADDRESS, decimals: 18 },
-  ETH:  { address: NATIVE_TOKEN_ADDRESS, decimals: 18 },
-}
-
 function getToken(currency: string) {
-  return PAYROLL_TOKEN_MAP[currency] ?? PAYROLL_TOKEN_MAP['USDC']
+  return (
+    INVOICE_TOKEN_OPTIONS.find((t) => t.symbol === currency) ??
+    INVOICE_TOKEN_OPTIONS.find((t) => t.symbol === 'USDCm')!
+  )
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -208,7 +204,7 @@ export default function MemberDetail() {
     const executedAt = new Date().toISOString()
 
     try {
-      const token = getToken(member.salaryCurrency ?? 'USDC')
+      const token = getToken(member.salaryCurrency ?? 'USDCm')
       const amount = parseAmount(String(member.salary), token.decimals)
 
       setPayStatus('Sending private payment...')
@@ -229,7 +225,7 @@ export default function MemberDetail() {
         memberName: name,
         memberAddress,
         amount: member.salary,
-        currency: member.salaryCurrency ?? 'USDC',
+        currency: member.salaryCurrency ?? 'USDCm',
         schedule: member.salarySchedule ?? 'monthly',
         executedAt,
         txHash: status.txHash,
@@ -250,7 +246,7 @@ export default function MemberDetail() {
           memberAddress,
           memberName: name,
           amount: member.salary,
-          currency: member.salaryCurrency ?? 'USDC',
+          currency: member.salaryCurrency ?? 'USDCm',
           schedule: member.salarySchedule ?? 'monthly',
           executedAt,
           txHash: status.txHash,
@@ -313,7 +309,7 @@ export default function MemberDetail() {
           memberAddress,
           memberName: memberDisplayName(member) ?? undefined,
           amount: member.salary,
-          currency: member.salaryCurrency ?? 'USDC',
+          currency: member.salaryCurrency ?? 'USDCm',
           schedule: member.salarySchedule ?? 'monthly',
           scheduledFor,
         }),
@@ -437,9 +433,9 @@ export default function MemberDetail() {
         {hasSalary ? (
           <div className="mt-5 pt-5 border-t border-[rgba(255,255,255,0.06)] grid grid-cols-3 gap-4">
             {[
-              { label: 'Salary',    value: `${fmtAmt(member.salary!)} ${member.salaryCurrency ?? 'USDC'}` },
+              { label: 'Salary',    value: `${fmtAmt(member.salary!)} ${member.salaryCurrency ?? 'USDCm'}` },
               { label: 'Schedule',  value: scheduleLabel(member.salarySchedule ?? 'monthly') },
-              { label: 'Monthly ≈', value: `${fmtAmt(monthly)} ${member.salaryCurrency ?? 'USDC'}` },
+              { label: 'Monthly ≈', value: `${fmtAmt(monthly)} ${member.salaryCurrency ?? 'USDCm'}` },
             ].map(({ label, value }) => (
               <div key={label}>
                 <p className="text-nyx-muted text-[10px] uppercase tracking-wide mb-0.5">{label}</p>
@@ -453,28 +449,6 @@ export default function MemberDetail() {
           </div>
         )}
       </div>
-
-      {/* ── Quick Actions ── */}
-      {canManage && memberAddress && (
-        <div className="flex gap-3 mb-4">
-          <button
-            onClick={() => {
-              const params = new URLSearchParams()
-              params.set('payerAddress', memberAddress)
-              if (member.firstName)        params.set('payerFirstName', member.firstName)
-              if (member.lastName)         params.set('payerLastName',  member.lastName)
-              if (member.companyRole)      params.set('payerCompany',   member.companyRole)
-              if (member.salary)           params.set('amount',         String(member.salary))
-              if (member.salaryCurrency)   params.set('currency',       member.salaryCurrency)
-              if (member.salarySchedule)   params.set('schedule',       member.salarySchedule)
-              navigate(`/invoices/create?${params.toString()}`)
-            }}
-            className="btn-secondary flex-1"
-          >
-            Create Invoice
-          </button>
-        </div>
-      )}
 
       {/* ── Payroll Actions (admins only, with salary set) ── */}
       {canManage && hasSalary && (
@@ -572,7 +546,7 @@ export default function MemberDetail() {
         <div className="nyx-card p-6 mb-4">
           <p className="text-nyx-muted text-[10px] uppercase tracking-widest mb-3">Your Salary</p>
           <p className="text-nyx-text text-xl font-semibold">
-            {fmtAmt(member.salary!)} {member.salaryCurrency ?? 'USDC'}
+            {fmtAmt(member.salary!)} {member.salaryCurrency ?? 'USDCm'}
             <span className="text-nyx-muted text-sm font-normal ml-2">/ {scheduleLabel(member.salarySchedule ?? 'monthly').toLowerCase()}</span>
           </p>
         </div>

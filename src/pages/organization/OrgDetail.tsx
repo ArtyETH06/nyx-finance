@@ -5,6 +5,7 @@ import {
   Users, UserPlus, Loader2, ShieldCheck, User,
   DollarSign, Pencil, Check, X,
 } from 'lucide-react'
+import { INVOICE_TOKEN_OPTIONS } from '../../lib/tokens'
 
 interface OrgMember {
   address: string
@@ -26,7 +27,7 @@ interface Organization {
   createdAt: string
 }
 
-const CURRENCIES = ['USDC', 'USDT', 'ETH', 'MON']
+const CURRENCIES = INVOICE_TOKEN_OPTIONS.map((t) => t.symbol)
 const SCHEDULES: { value: OrgMember['salarySchedule']; label: string }[] = [
   { value: 'monthly',  label: 'Monthly'   },
   { value: 'biweekly', label: 'Bi-weekly' },
@@ -88,7 +89,7 @@ function PayrollChart({ members }: { members: OrgMember[] }) {
                 />
               </div>
               <p className="text-xs text-nyx-muted tabular-nums flex-shrink-0 w-36 text-right">
-                {formatAmt(monthly)} {m.salaryCurrency ?? 'USDC'}<span className="text-nyx-muted/50">/mo</span>
+                {formatAmt(monthly)} {m.salaryCurrency ?? 'USDCm'}<span className="text-nyx-muted/50">/mo</span>
               </p>
             </div>
           )
@@ -108,7 +109,7 @@ interface SalaryEditorProps {
 
 function SalaryEditor({ member, orgId, onSaved, onCancel }: SalaryEditorProps) {
   const [salary, setSalary]     = useState(String(member.salary ?? ''))
-  const [currency, setCurrency] = useState(member.salaryCurrency ?? 'USDC')
+  const [currency, setCurrency] = useState(member.salaryCurrency ?? 'USDCm')
   const [schedule, setSchedule] = useState<OrgMember['salarySchedule']>(member.salarySchedule ?? 'monthly')
   const [saving, setSaving]     = useState(false)
   const [err, setErr]           = useState<string | null>(null)
@@ -457,7 +458,7 @@ export default function OrgDetail() {
                       {(m.salary ?? 0) > 0 ? (
                         <>
                           <p className="text-nyx-text text-sm font-semibold tabular-nums">
-                            {formatAmt(m.salary!)} {m.salaryCurrency ?? 'USDC'}
+                            {formatAmt(m.salary!)} {m.salaryCurrency ?? 'USDCm'}
                           </p>
                           <p className="text-nyx-muted text-[10px]">
                             {SCHEDULES.find((s) => s.value === m.salarySchedule)?.label ?? 'Monthly'}
