@@ -32,6 +32,20 @@ export default function InvoiceDetail() {
   const [rejectReason, setRejectReason] = useState('')
   const [showReject, setShowReject] = useState(false)
   const [txStatusText, setTxStatusText] = useState<string | null>(null)
+  const [copiedIssuer, setCopiedIssuer] = useState(false)
+  const [copiedPayer, setCopiedPayer] = useState(false)
+
+  function copyAddress(addr: string, which: 'issuer' | 'payer') {
+    navigator.clipboard.writeText(addr).then(() => {
+      if (which === 'issuer') {
+        setCopiedIssuer(true)
+        setTimeout(() => setCopiedIssuer(false), 1500)
+      } else {
+        setCopiedPayer(true)
+        setTimeout(() => setCopiedPayer(false), 1500)
+      }
+    })
+  }
 
   const balancesRef = useRef(balances)
   useEffect(() => { balancesRef.current = balances }, [balances])
@@ -276,12 +290,12 @@ export default function InvoiceDetail() {
 
   if (loading) {
     return (
-      <main className="px-8 py-10 max-w-4xl min-h-[55vh] flex items-center justify-center">
+      <div className="fixed inset-0 flex items-center justify-center">
         <div className="flex items-center gap-2 text-nyx-muted text-sm">
           <Loader2 size={16} className="animate-spin text-nyx-accent" />
           Loading invoice...
         </div>
-      </main>
+      </div>
     )
   }
 
@@ -338,7 +352,16 @@ export default function InvoiceDetail() {
             {invoice.issuerInfo?.company && (
               <p className="text-nyx-muted text-xs mt-0.5">{invoice.issuerInfo.company}</p>
             )}
-            <p className="font-mono text-nyx-muted text-xs mt-1 break-all">{invoice.issuerAddress}</p>
+            <div className="relative group cursor-pointer mt-1" onClick={() => copyAddress(invoice.issuerAddress, 'issuer')}>
+              <p className={`font-mono text-xs break-all transition-colors duration-150 select-none ${copiedIssuer ? 'text-nyx-success' : 'text-nyx-muted group-hover:text-nyx-accent'}`}>
+                {copiedIssuer ? 'Copied!' : invoice.issuerAddress}
+              </p>
+              {!copiedIssuer && (
+                <span className="absolute -top-6 left-0 text-[10px] text-nyx-muted bg-nyx-secondary border border-[rgba(255,255,255,0.08)] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap pointer-events-none z-10">
+                  Click to copy
+                </span>
+              )}
+            </div>
           </div>
           <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-lg p-4">
             <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-2">Payer</p>
@@ -346,7 +369,16 @@ export default function InvoiceDetail() {
             {invoice.payerInfo?.company && (
               <p className="text-nyx-muted text-xs mt-0.5">{invoice.payerInfo.company}</p>
             )}
-            <p className="font-mono text-nyx-muted text-xs mt-1 break-all">{invoice.payerAddress}</p>
+            <div className="relative group cursor-pointer mt-1" onClick={() => copyAddress(invoice.payerAddress, 'payer')}>
+              <p className={`font-mono text-xs break-all transition-colors duration-150 select-none ${copiedPayer ? 'text-nyx-success' : 'text-nyx-muted group-hover:text-nyx-accent'}`}>
+                {copiedPayer ? 'Copied!' : invoice.payerAddress}
+              </p>
+              {!copiedPayer && (
+                <span className="absolute -top-6 left-0 text-[10px] text-nyx-muted bg-nyx-secondary border border-[rgba(255,255,255,0.08)] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap pointer-events-none z-10">
+                  Click to copy
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -378,10 +410,6 @@ export default function InvoiceDetail() {
           <div>
             <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Token</p>
             <p className="text-nyx-text text-sm">{invoice.tokenSymbol}</p>
-          </div>
-          <div>
-            <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">PDF Hash</p>
-            <p className="font-mono text-nyx-muted text-xs break-all">{invoice.pdfHash}</p>
           </div>
           {invoice.status === 'paid' && (invoice.payment?.txHash || invoice.payment?.relayId) && (
             <div>
@@ -415,7 +443,7 @@ export default function InvoiceDetail() {
 
         <button onClick={handleDownloadPdf} disabled={busy} className="btn-secondary mt-5">
           <Download size={13} strokeWidth={1.5} />
-          Download PDF
+          Download Invoice
         </button>
       </div>
 

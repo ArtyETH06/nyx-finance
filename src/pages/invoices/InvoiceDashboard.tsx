@@ -112,7 +112,7 @@ export default function InvoiceDashboard() {
       </div>
 
       {loading && (
-        <div className="min-h-[45vh] flex items-center justify-center">
+        <div className="fixed inset-0 flex items-center justify-center">
           <div className="flex items-center gap-2 text-nyx-muted text-sm">
             <Loader2 size={16} className="animate-spin text-nyx-accent" />
             Loading invoices...
