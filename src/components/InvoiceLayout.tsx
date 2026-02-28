@@ -8,7 +8,7 @@ const navItems = [
 
 export default function InvoiceLayout() {
   return (
-    <div className="flex min-h-[calc(100vh-57px)]">
+    <div className="flex min-h-full">
       {/* Sub-nav sidebar */}
       <aside className="w-52 flex-shrink-0 border-r border-[rgba(255,255,255,0.06)] px-3 py-8">
         <p className="text-[10px] font-semibold tracking-widest text-nyx-muted uppercase mb-4 px-3">

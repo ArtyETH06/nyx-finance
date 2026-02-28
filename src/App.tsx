@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { useUnlink } from '@unlink-xyz/react'
 import Header from './components/Header'
+import Footer from './components/Footer'
 import WalletPopup from './components/WalletPopup'
 import Toast from './components/Toast'
 import InvoiceLayout from './components/InvoiceLayout'
@@ -42,18 +43,21 @@ function AppInner() {
   }
 
   return (
-    <div className="min-h-screen bg-nyx-bg">
+    <div className="min-h-screen bg-nyx-bg flex flex-col">
       <Header />
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/wallet" element={<Wallet />} />
-        <Route path="/invoices" element={<InvoiceLayout />}>
-          <Route index element={<InvoiceDashboard />} />
-          <Route path="create" element={<CreateInvoice />} />
-          <Route path=":id" element={<InvoiceDetail />} />
-        </Route>
-      </Routes>
+      <div className="flex-1 min-h-0">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/wallet" element={<Wallet />} />
+          <Route path="/invoices" element={<InvoiceLayout />}>
+            <Route index element={<InvoiceDashboard />} />
+            <Route path="create" element={<CreateInvoice />} />
+            <Route path=":id" element={<InvoiceDetail />} />
+          </Route>
+        </Routes>
+      </div>
+      <Footer />
       <Toast />
     </div>
   )

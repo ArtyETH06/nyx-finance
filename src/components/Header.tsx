@@ -10,7 +10,7 @@ export default function Header() {
           <img
             src={nyxLogo}
             alt="NYX"
-            className="h-7 w-auto object-contain mb-0.5 opacity-95 group-hover:opacity-100 transition-opacity duration-150"
+            className="h-9 w-auto -ml-12 object-contain mb-0.5 opacity-95 group-hover:opacity-100 transition-opacity duration-150"
           />
           <span className="text-[11px] text-nyx-muted tracking-wide">
             Public blockchain. Private business.
