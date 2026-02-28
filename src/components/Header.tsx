@@ -18,21 +18,27 @@ export default function Header() {
         </Link>
       </div>
 
-      <nav className="justify-self-center">
-        <NavLink
-          to="/invoices"
-          className={({ isActive }) =>
-            [
-              'relative px-3 py-1.5 text-sm transition-colors duration-150',
-              'after:absolute after:left-2 after:right-2 after:-bottom-1 after:h-0.5 after:rounded-full after:transition-opacity',
-              isActive
-                ? 'text-nyx-text after:bg-nyx-accent after:opacity-100'
-                : 'text-nyx-muted hover:text-nyx-text after:opacity-0',
-            ].join(' ')
-          }
-        >
-          Invoices
-        </NavLink>
+      <nav className="justify-self-center flex items-center gap-50">
+        {[
+          { to: '/invoices',      label: 'Invoices'      },
+          { to: '/organization',  label: 'Organization'  },
+        ].map(({ to, label }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className={({ isActive }) =>
+              [
+                'relative px-3 py-1.5 text-sm transition-colors duration-150',
+                'after:absolute after:left-2 after:right-2 after:-bottom-1 after:h-0.5 after:rounded-full after:transition-opacity',
+                isActive
+                  ? 'text-nyx-text after:bg-nyx-accent after:opacity-100'
+                  : 'text-nyx-muted hover:text-nyx-text after:opacity-0',
+              ].join(' ')
+            }
+          >
+            {label}
+          </NavLink>
+        ))}
       </nav>
 
       <div className="justify-self-end">

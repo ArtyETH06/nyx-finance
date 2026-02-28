@@ -7,12 +7,16 @@ import Footer from './components/Footer'
 import WalletPopup from './components/WalletPopup'
 import Toast from './components/Toast'
 import InvoiceLayout from './components/InvoiceLayout'
+import OrgLayout from './components/OrgLayout'
 import Home from './pages/Home'
 import Profile from './pages/Profile'
 import Wallet from './pages/Wallet'
 import InvoiceDashboard from './pages/invoices/InvoiceDashboard'
 import CreateInvoice from './pages/invoices/CreateInvoice'
 import InvoiceDetail from './pages/invoices/InvoiceDetail'
+import OrgDashboard from './pages/organization/OrgDashboard'
+import Teams from './pages/organization/Teams'
+import OrgDetail from './pages/organization/OrgDetail'
 
 function FullscreenLoader({ label }: { label: string }) {
   return (
@@ -58,6 +62,11 @@ function AppInner() {
             <Route index element={<InvoiceDashboard />} />
             <Route path="create" element={<CreateInvoice />} />
             <Route path=":id" element={<InvoiceDetail />} />
+          </Route>
+          <Route path="/organization" element={<OrgLayout />}>
+            <Route index element={<OrgDashboard />} />
+            <Route path="teams" element={<Teams />} />
+            <Route path="teams/:id" element={<OrgDetail />} />
           </Route>
         </Routes>
       </div>
