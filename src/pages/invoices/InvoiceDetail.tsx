@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { parseAmount, useUnlink } from '@unlink-xyz/react'
+import { parseAmount, useUnlink, useUnlinkHistory } from '@unlink-xyz/react'
 import { ArrowLeft, Check, Download, Loader2, X } from 'lucide-react'
 import { toast } from '../../lib/toast'
 import type { Invoice } from '../../lib/invoices'
@@ -23,7 +23,9 @@ function fmtMoney(amount: number, symbol: string) {
 export default function InvoiceDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { activeAccount, send, waitForConfirmation, refresh, balances } = useUnlink()
+  const { activeAccount, send, waitForConfirmation, refresh, balances, notes } = useUnlink()
+
+  const { history } = useUnlinkHistory()
 
   const [invoice, setInvoice] = useState<Invoice | null>(null)
   const [loading, setLoading] = useState(true)
@@ -52,6 +54,12 @@ export default function InvoiceDetail() {
 
   const address = activeAccount?.address ?? ''
   const isPayer = !!invoice && invoice.payerAddress === address
+
+  // Match the ZK history entry and notes by the on-chain txHash
+  const paymentTxHash = invoice?.payment?.txHash
+  const proofEntry  = paymentTxHash ? history.find((e) => e.txHash === paymentTxHash) : undefined
+  const spentNotes  = paymentTxHash ? notes.filter((n) => n.spentTxHash   === paymentTxHash) : []
+  const createdNotes = paymentTxHash ? notes.filter((n) => n.createdTxHash === paymentTxHash) : []
 
   const token = useMemo(
     () => (invoice ? getTokenByAddress(invoice.tokenAddress) : undefined),
@@ -272,6 +280,8 @@ export default function InvoiceDetail() {
         lineItems: invoice.lineItems,
         tokenSymbol: invoice.tokenSymbol,
         status: invoice.status,
+        payment: invoice.payment,
+        nullifiers: spentNotes.map((n) => n.nullifier),
       })
       const blob = pdf.output('blob')
       const regeneratedHash = await sha256Blob(blob)
@@ -412,25 +422,116 @@ export default function InvoiceDetail() {
             <p className="text-nyx-text text-sm">{invoice.tokenSymbol}</p>
           </div>
           {invoice.status === 'paid' && (invoice.payment?.txHash || invoice.payment?.relayId) && (
-            <div>
-              <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Payment Proof</p>
-              <div className="space-y-1">
-                {invoice.payment?.txHash && (
+            <div className="bg-[rgba(34,197,94,0.05)] border border-[rgba(34,197,94,0.15)] rounded-lg p-4 space-y-3">
+              <p className="text-[10px] uppercase tracking-widest text-nyx-success font-semibold">Payment Proof</p>
+
+              {invoice.payment?.paidAt && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-0.5">Paid At</p>
+                  <p className="text-nyx-text text-xs">{new Date(invoice.payment.paidAt).toLocaleString()}</p>
+                </div>
+              )}
+
+              {invoice.payment?.txHash && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-0.5">Transaction Hash</p>
                   <a
                     href={`https://testnet.monadexplorer.com/tx/${invoice.payment.txHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-nyx-success text-sm underline break-all"
+                    className="font-mono text-nyx-success text-xs break-all hover:underline"
                   >
                     {invoice.payment.txHash}
                   </a>
-                )}
-                {invoice.payment?.relayId && (
-                  <p className="font-mono text-nyx-muted text-xs break-all">
-                    Relay ID: {invoice.payment.relayId}
+                </div>
+              )}
+
+              {invoice.payment?.relayId && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-0.5">Relay ID</p>
+                  <p className="font-mono text-nyx-muted text-xs break-all">{invoice.payment.relayId}</p>
+                </div>
+              )}
+
+              {proofEntry && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">ZK Transfer Record</p>
+                  <div className="bg-[rgba(255,255,255,0.03)] rounded-md p-3 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-nyx-text font-medium">{proofEntry.kind}</span>
+                      <span className={`ml-auto text-[10px] font-semibold uppercase px-2 py-0.5 rounded ${proofEntry.status === 'confirmed' ? 'bg-[rgba(34,197,94,0.12)] text-nyx-success' : 'bg-[rgba(255,255,255,0.06)] text-nyx-muted'}`}>
+                        {proofEntry.status}
+                      </span>
+                    </div>
+                    {proofEntry.timestamp && (
+                      <p className="text-nyx-muted text-xs">{new Date(proofEntry.timestamp).toLocaleString()}</p>
+                    )}
+                    {proofEntry.amounts.map(({ token, delta }) => (
+                      <div key={token} className="flex items-center gap-2 text-xs font-mono">
+                        <span className="text-nyx-muted truncate">{token.slice(0, 10)}…</span>
+                        <span className={delta.startsWith('-') ? 'text-nyx-danger' : 'text-nyx-success'}>{delta}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {(spentNotes.length > 0 || createdNotes.length > 0) && (
+                <div className="pt-2 border-t border-[rgba(255,255,255,0.06)]">
+                  <p className="text-[10px] text-nyx-muted leading-relaxed mb-3">
+                    Nullifiers and commitments are ZK cryptographic values embedded in the pool contract calldata.
+                    They cannot be searched directly — verify them by inspecting the transaction above.
                   </p>
-                )}
-              </div>
+
+                  {spentNotes.length > 0 && (
+                    <div className="mb-2">
+                      <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Nullified Notes ({spentNotes.length})</p>
+                      <div className="space-y-1.5">
+                        {spentNotes.map((n) => (
+                          <div key={n.nullifier} className="bg-[rgba(255,255,255,0.03)] rounded-md p-2.5 space-y-1 font-mono text-[10px]">
+                            <div className="flex gap-2">
+                              <span className="text-nyx-muted w-20 flex-shrink-0">nullifier</span>
+                              <span className="text-nyx-text break-all">{n.nullifier}</span>
+                            </div>
+                            <div className="flex gap-2">
+                              <span className="text-nyx-muted w-20 flex-shrink-0">commitment</span>
+                              <span className="text-nyx-muted break-all">{n.commitment}</span>
+                            </div>
+                            <div className="flex gap-2">
+                              <span className="text-nyx-muted w-20 flex-shrink-0">value</span>
+                              <span className="text-nyx-text">{n.value.toString()}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {createdNotes.length > 0 && (
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Output Notes ({createdNotes.length})</p>
+                      <div className="space-y-1.5">
+                        {createdNotes.map((n) => (
+                          <div key={n.commitment} className="bg-[rgba(255,255,255,0.03)] rounded-md p-2.5 space-y-1 font-mono text-[10px]">
+                            <div className="flex gap-2">
+                              <span className="text-nyx-muted w-20 flex-shrink-0">commitment</span>
+                              <span className="text-nyx-text break-all">{n.commitment}</span>
+                            </div>
+                            <div className="flex gap-2">
+                              <span className="text-nyx-muted w-20 flex-shrink-0">value</span>
+                              <span className="text-nyx-text">{n.value.toString()}</span>
+                            </div>
+                            <div className="flex gap-2">
+                              <span className="text-nyx-muted w-20 flex-shrink-0">leaf index</span>
+                              <span className="text-nyx-muted">{n.index}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
           {invoice.rejectionReason && (

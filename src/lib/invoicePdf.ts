@@ -16,6 +16,12 @@ interface InvoicePdfInput {
   lineItems: InvoiceLineItem[]
   tokenSymbol: string
   status: InvoiceStatus
+  payment?: {
+    relayId?: string
+    txHash?: string
+    paidAt?: string
+  }
+  nullifiers?: string[]
 }
 
 const COLOR = {
@@ -292,6 +298,97 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<jsPDF> {
   doc.setFontSize(11)
   doc.text('TOTAL', left, y)
   doc.text(`${fmtAmount(total)} ${input.tokenSymbol}`, right, y, { align: 'right' })
+
+  // ── Payment Proof (only on paid invoices) ──────────────────────────────────
+  if (input.status === 'paid' && (input.payment?.txHash || input.payment?.relayId)) {
+    y += 28
+
+    if (y + 80 > pageHeight - 48) {
+      doc.addPage()
+      y = 84
+    }
+
+    doc.setDrawColor(...COLOR.lineLight)
+    doc.setLineWidth(0.5)
+    doc.line(left, y, right, y)
+    y += 16
+
+    drawSectionTitle(doc, left, y, 'PAYMENT PROOF')
+    y += 14
+
+    const labelX = left
+    const proofValueX = left + 100
+
+    if (input.payment.paidAt) {
+      const paidDate = new Date(input.payment.paidAt).toLocaleString('en-US', {
+        month: 'long', day: 'numeric', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', timeZoneName: 'short',
+      })
+      doc.setTextColor(...COLOR.textMuted)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(8)
+      doc.text('PAID AT', labelX, y)
+      doc.setTextColor(...COLOR.textDark)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(9)
+      doc.text(paidDate, proofValueX, y)
+      y += 14
+    }
+
+    if (input.payment.relayId) {
+      doc.setTextColor(...COLOR.textMuted)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(8)
+      doc.text('RELAY ID', labelX, y)
+      doc.setTextColor(...COLOR.textDark)
+      doc.setFont('courier', 'normal')
+      doc.setFontSize(7.5)
+      const relayLines = doc.splitTextToSize(input.payment.relayId, right - proofValueX)
+      doc.text(relayLines, proofValueX, y)
+      y += relayLines.length * 10 + 4
+    }
+
+    if (input.payment.txHash) {
+      doc.setTextColor(...COLOR.textMuted)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(8)
+      doc.text('TX HASH', labelX, y)
+      doc.setTextColor(34, 197, 94)
+      doc.setFont('courier', 'normal')
+      doc.setFontSize(7.5)
+      const hashLines = doc.splitTextToSize(input.payment.txHash, right - proofValueX)
+      doc.text(hashLines, proofValueX, y)
+      y += hashLines.length * 10 + 4
+
+      doc.setTextColor(...COLOR.textMuted)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(7.5)
+      doc.text(`Verify: https://testnet.monadexplorer.com/tx/${input.payment.txHash}`, labelX, y)
+      y += 12
+    }
+
+    if (input.nullifiers && input.nullifiers.length > 0) {
+      if (y + input.nullifiers.length * 12 + 20 > pageHeight - 48) {
+        doc.addPage()
+        y = 84
+      }
+
+      doc.setTextColor(...COLOR.textMuted)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(8)
+      doc.text('NOTE NULLIFIERS', labelX, y)
+      y += 12
+
+      for (const nullifier of input.nullifiers) {
+        doc.setTextColor(239, 68, 68)  // red — spent/nullified
+        doc.setFont('courier', 'normal')
+        doc.setFontSize(7)
+        const nullLines = doc.splitTextToSize(nullifier, right - labelX - 10)
+        doc.text(nullLines, labelX + 10, y)
+        y += nullLines.length * 9 + 3
+      }
+    }
+  }
 
   const footerLineY = pageHeight - 32
   const footerTextY = (footerLineY + pageHeight) / 2 + 2
