@@ -4,8 +4,8 @@ import nyxLogo from '../images/logo.png'
 
 export default function Header() {
   return (
-    <header className="flex items-center justify-between px-6 py-4 bg-nyx-bg border-b border-[rgba(255,255,255,0.06)]">
-      <div className="flex items-center gap-10">
+    <header className="grid grid-cols-[1fr_auto_1fr] items-center px-6 py-4 bg-nyx-bg border-b border-[rgba(255,255,255,0.06)]">
+      <div className="justify-self-start">
         <Link to="/" className="flex flex-col leading-tight group">
           <img
             src={nyxLogo}
@@ -16,25 +16,28 @@ export default function Header() {
             Public blockchain. Private business.
           </span>
         </Link>
-
-        <nav className="flex items-center gap-1">
-          <NavLink
-            to="/invoices"
-            className={({ isActive }) =>
-              [
-                'px-3 py-1.5 rounded-lg text-sm transition-colors duration-150',
-                isActive
-                  ? 'text-nyx-text bg-[rgba(255,255,255,0.06)]'
-                  : 'text-nyx-muted hover:text-nyx-text hover:bg-[rgba(255,255,255,0.04)]',
-              ].join(' ')
-            }
-          >
-            Invoices
-          </NavLink>
-        </nav>
       </div>
 
-      <AddressBox />
+      <nav className="justify-self-center">
+        <NavLink
+          to="/invoices"
+          className={({ isActive }) =>
+            [
+              'relative px-3 py-1.5 rounded-lg text-sm transition-colors duration-150',
+              'after:absolute after:left-2 after:right-2 after:-bottom-1 after:h-0.5 after:rounded-full after:transition-opacity',
+              isActive
+                ? 'text-nyx-text bg-[rgba(255,255,255,0.06)] after:bg-nyx-accent after:opacity-100'
+                : 'text-nyx-muted hover:text-nyx-text hover:bg-[rgba(255,255,255,0.04)] after:opacity-0',
+            ].join(' ')
+          }
+        >
+          Invoices
+        </NavLink>
+      </nav>
+
+      <div className="justify-self-end">
+        <AddressBox />
+      </div>
     </header>
   )
 }
