@@ -39,6 +39,7 @@ export default function InvoiceDetail() {
 
   const [invoice, setInvoice] = useState<Invoice | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadingDots, setLoadingDots] = useState(1)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
@@ -134,6 +135,14 @@ export default function InvoiceDetail() {
   }, [id, busy, loadInvoice])
 
   useEffect(() => subscribeInvoiceUpdates(() => { if (!busy) void loadInvoice() }), [busy, loadInvoice])
+
+  useEffect(() => {
+    if (!loading) return
+    const timer = window.setInterval(() => {
+      setLoadingDots((prev) => (prev % 3) + 1)
+    }, 450)
+    return () => window.clearInterval(timer)
+  }, [loading])
 
   async function patchInvoice(patch: Record<string, unknown>) {
     if (!id) throw new Error('Missing invoice id')
@@ -315,7 +324,7 @@ export default function InvoiceDetail() {
       <div className="fixed inset-0 flex items-center justify-center">
         <div className="flex items-center gap-2 text-nyx-muted text-sm">
           <Loader2 size={16} className="animate-spin text-nyx-accent" />
-          Loading invoice...
+          {`Loading Invoice${'.'.repeat(loadingDots)}`}
         </div>
       </div>
     )
@@ -499,7 +508,7 @@ export default function InvoiceDetail() {
                   <div className="bg-nyx-hover rounded-md p-3 space-y-1.5">
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-nyx-text font-medium">{proofEntry.kind}</span>
-                      <span className={`ml-auto text-[10px] font-semibold uppercase px-2 py-0.5 rounded ${proofEntry.status === 'confirmed' ? 'bg-[rgba(34,197,94,0.12)] text-nyx-success' : 'bg-[rgba(255,255,255,0.06)] text-nyx-muted'}`}>
+                      <span className={`ml-auto text-[10px] font-semibold uppercase px-2 py-0.5 rounded ${proofEntry.status === 'confirmed' ? 'bg-[rgba(34,197,94,0.12)] text-nyx-success' : 'bg-nyx-hover text-nyx-muted'}`}>
                         {proofEntry.status}
                       </span>
                     </div>

@@ -8,9 +8,9 @@ const navItems = [
 
 export default function InvoiceLayout() {
   return (
-    <div className="flex min-h-full">
+    <div className="flex h-full min-h-0">
       {/* Sub-nav sidebar */}
-      <aside className="w-52 flex-shrink-0 border-r border-nyx-border px-3 py-8">
+      <aside className="w-52 flex-shrink-0 self-stretch border-r border-nyx-border px-3 py-8">
         <p className="text-[10px] font-semibold tracking-widest text-nyx-muted uppercase mb-4 px-3">
           Invoices
         </p>
@@ -37,7 +37,7 @@ export default function InvoiceLayout() {
       </aside>
 
       {/* Page content */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 h-full overflow-auto">
         <Outlet />
       </div>
     </div>

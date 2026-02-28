@@ -83,6 +83,7 @@ export default function PayInvoice() {
   const { id } = useParams()
   const [invoice, setInvoice] = useState<Invoice | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadingDots, setLoadingDots] = useState(1)
   const [error, setError] = useState<string | null>(null)
   const [payerAddress, setPayerAddress] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
@@ -276,6 +277,14 @@ export default function PayInvoice() {
   }, [id])
 
   useEffect(() => {
+    if (!loading) return
+    const timer = window.setInterval(() => {
+      setLoadingDots((prev) => (prev % 3) + 1)
+    }, 450)
+    return () => window.clearInterval(timer)
+  }, [loading])
+
+  useEffect(() => {
     async function loadBalance() {
       if (!ethereum || !payerAddress || !invoice) {
         setTokenBalanceText(null)
@@ -449,10 +458,10 @@ export default function PayInvoice() {
 
   if (loading) {
     return (
-      <main className="px-6 py-10 max-w-3xl mx-auto min-h-[60vh] flex items-center justify-center">
-        <div className="nyx-card p-6 text-nyx-muted text-sm inline-flex items-center gap-2">
+      <main className="px-6 py-10 min-h-[60vh] flex items-center justify-center">
+        <div className="text-nyx-muted text-sm inline-flex items-center gap-2">
           <Loader2 size={14} className="animate-spin text-nyx-accent" />
-          Loading payment page...
+          {`Loading Payment Page${'.'.repeat(loadingDots)}`}
         </div>
       </main>
     )
@@ -489,9 +498,16 @@ export default function PayInvoice() {
     await handlePay()
   }
 
+  const statusClass =
+    invoice.status === 'paid'
+      ? 'text-nyx-success'
+      : invoice.status === 'rejected'
+        ? 'text-nyx-danger'
+        : 'text-yellow-300'
+
   return (
-    <main className="px-6 py-10 max-w-3xl mx-auto space-y-4">
-      <div className="nyx-card p-6 space-y-5">
+    <main className="px-6 py-10 min-h-[calc(100vh-220px)] flex items-start justify-center">
+      <div className="nyx-card p-6 space-y-5 w-full max-w-2xl">
         <div>
           <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Invoice Payment</p>
           <h1 className="text-xl font-semibold text-nyx-text">{invoice.title}</h1>
@@ -504,11 +520,14 @@ export default function PayInvoice() {
           </div>
           <div>
             <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Amount</p>
-            <p className="text-nyx-text text-sm">{fmtAmount(invoice.amount, invoice.tokenSymbol)}</p>
+            <p className="text-nyx-text text-sm">
+              ${invoice.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+              <code className="font-mono text-[12px] text-nyx-muted">`{invoice.tokenSymbol}`</code>
+            </p>
           </div>
           <div>
             <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Status</p>
-            <p className="text-nyx-text text-sm uppercase">{statusLabel(invoice.status)}</p>
+            <p className={`text-sm uppercase ${statusClass}`}>{statusLabel(invoice.status)}</p>
           </div>
           <div>
             <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Token Balance</p>
@@ -538,12 +557,12 @@ export default function PayInvoice() {
                 'w-full text-left rounded-xl border px-4 py-3 transition-colors',
                 'flex items-center justify-between gap-3',
                 paymentMethod === 'metamask'
-                  ? 'border-nyx-accent bg-[rgba(108,92,231,0.10)]'
-                  : 'border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.04)]',
+                  ? 'border-nyx-accent bg-nyx-active'
+                  : 'border-nyx-border bg-nyx-card hover:bg-nyx-hover',
               ].join(' ')}
             >
               <div className="flex items-center gap-3 min-w-0">
-                <div className="h-10 w-10 rounded-lg bg-[rgba(255,255,255,0.06)] flex items-center justify-center text-lg">
+                <div className="h-10 w-10 rounded-lg bg-nyx-hover flex items-center justify-center text-lg">
                   🦊
                 </div>
                 <div className="min-w-0">
@@ -556,7 +575,7 @@ export default function PayInvoice() {
                   'h-4 w-4 rounded-full border',
                   paymentMethod === 'metamask'
                     ? 'border-nyx-accent bg-nyx-accent'
-                    : 'border-[rgba(255,255,255,0.35)] bg-transparent',
+                    : 'border-nyx-border bg-transparent',
                 ].join(' ')}
               />
             </button>
@@ -568,12 +587,12 @@ export default function PayInvoice() {
                 'w-full text-left rounded-xl border px-4 py-3 transition-colors',
                 'flex items-center justify-between gap-3',
                 paymentMethod === 'alchemy'
-                  ? 'border-nyx-accent bg-[rgba(108,92,231,0.10)]'
-                  : 'border-[rgba(255,255,255,0.10)] bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.04)]',
+                  ? 'border-nyx-accent bg-nyx-active'
+                  : 'border-nyx-border bg-nyx-card hover:bg-nyx-hover',
               ].join(' ')}
             >
               <div className="flex items-center gap-3 min-w-0">
-                <div className="h-10 w-10 rounded-lg bg-[rgba(255,255,255,0.06)] flex items-center justify-center text-lg">
+                <div className="h-10 w-10 rounded-lg bg-nyx-hover flex items-center justify-center text-lg">
                   💳
                 </div>
                 <div className="min-w-0">
@@ -586,7 +605,7 @@ export default function PayInvoice() {
                   'h-4 w-4 rounded-full border',
                   paymentMethod === 'alchemy'
                     ? 'border-nyx-accent bg-nyx-accent'
-                    : 'border-[rgba(255,255,255,0.35)] bg-transparent',
+                    : 'border-nyx-border bg-transparent',
                 ].join(' ')}
               />
             </button>

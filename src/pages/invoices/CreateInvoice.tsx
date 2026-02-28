@@ -72,6 +72,7 @@ export default function CreateInvoice() {
   const [form, setForm] = useState<FormState>(empty)
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [submittingDots, setSubmittingDots] = useState(1)
 
   // Pre-fill issuer from saved profile
   useEffect(() => {
@@ -85,6 +86,14 @@ export default function CreateInvoice() {
       issuerCompany:   p.company   || f.issuerCompany,
     }))
   }, [activeAccount?.address])
+
+  useEffect(() => {
+    if (!submitting) return
+    const timer = window.setInterval(() => {
+      setSubmittingDots((prev) => (prev % 3) + 1)
+    }, 450)
+    return () => window.clearInterval(timer)
+  }, [submitting])
 
   function set(field: Exclude<keyof FormState, 'lineItems'>) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -346,7 +355,7 @@ export default function CreateInvoice() {
           disabled={submitting}
           className="btn-primary"
         >
-          {submitting ? 'Creating...' : 'Create Invoice'}
+          {submitting ? `Creating Invoice${'.'.repeat(submittingDots)}` : 'Create Invoice'}
         </button>
 
       </form>

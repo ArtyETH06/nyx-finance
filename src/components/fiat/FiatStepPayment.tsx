@@ -24,13 +24,13 @@ function PaymentOption({
       onClick={onClick}
       className={`w-full rounded-lg border px-3 py-2.5 text-left transition-colors ${
         selected
-          ? 'border-blue-500 bg-blue-50 text-blue-700'
-          : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+          ? 'border-nyx-accent bg-nyx-active text-nyx-accent'
+          : 'border-nyx-border bg-nyx-card text-nyx-text hover:bg-nyx-hover'
       }`}
     >
       <div className="flex items-center justify-between gap-2">
         <span>{title}</span>
-        {subtitle && <span className="text-xs text-slate-500">{subtitle}</span>}
+        {subtitle && <span className="text-xs text-nyx-muted">{subtitle}</span>}
       </div>
     </button>
   )
@@ -39,8 +39,8 @@ function PaymentOption({
 function ReadOnlyField({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{label}</p>
-      <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-700 text-sm">{value}</div>
+      <p className="text-xs font-semibold text-nyx-muted uppercase tracking-wide mb-1">{label}</p>
+      <div className="rounded-lg border border-nyx-border bg-nyx-secondary px-3 py-2 text-nyx-text text-sm">{value}</div>
     </div>
   )
 }
@@ -55,10 +55,10 @@ export default function FiatStepPayment({
 
   return (
     <div className="space-y-4">
-      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Step 2 of 3</p>
-      <h3 className="text-xl font-semibold text-slate-900">Choose payment method</h3>
+      <p className="text-xs font-semibold text-nyx-muted uppercase tracking-wide">Step 2 of 3</p>
+      <h3 className="text-xl font-semibold text-nyx-text">Choose payment method</h3>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
+      <div className="rounded-xl border border-nyx-border bg-nyx-card p-4 space-y-4">
         <div className="space-y-2">
           <PaymentOption
             title="Card"
@@ -91,7 +91,7 @@ export default function FiatStepPayment({
           <button
             type="button"
             onClick={onBack}
-            className="flex-1 rounded-lg border border-slate-300 bg-white text-slate-700 py-2.5 font-medium hover:bg-slate-50"
+            className="flex-1 rounded-lg border border-nyx-border bg-nyx-card text-nyx-text py-2.5 font-medium hover:bg-nyx-hover transition-colors"
           >
             Back
           </button>
@@ -99,7 +99,7 @@ export default function FiatStepPayment({
             type="button"
             disabled={!canProceed}
             onClick={onProceed}
-            className="flex-1 rounded-lg bg-blue-600 text-white py-2.5 font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
+            className="flex-1 rounded-lg bg-nyx-accent text-white py-2.5 font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-nyx-accent-h transition-colors"
           >
             Proceed
           </button>

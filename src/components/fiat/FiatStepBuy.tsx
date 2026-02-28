@@ -46,6 +46,8 @@ function fmt(value: number, max = 4): string {
   })
 }
 
+const inputCls = 'rounded-lg border border-nyx-border bg-nyx-bg px-3 py-2 text-nyx-text focus:outline-none focus:border-nyx-accent transition-colors'
+
 export default function FiatStepBuy({ state, invoiceAmount, onChange, onProceed }: FiatStepBuyProps) {
   const payAmount = parsePositive(state.amount)
   const usdAmount = state.currency === 'USD' ? payAmount : payAmount * 1.1
@@ -54,18 +56,18 @@ export default function FiatStepBuy({ state, invoiceAmount, onChange, onProceed 
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-3 text-sm">
-        <button className="rounded-full bg-blue-100 text-blue-700 px-3 py-1 font-semibold">Buy Crypto</button>
-        <button className="text-slate-500 px-2 py-1">Sell Crypto</button>
-        <button className="text-slate-500 px-2 py-1 inline-flex items-center gap-1">
+      <div className="flex items-center gap-2 border-b border-nyx-border pb-3 text-sm">
+        <button className="rounded-full bg-nyx-active text-nyx-accent px-3 py-1 font-semibold">Buy Crypto</button>
+        <button className="text-nyx-muted px-2 py-1">Sell Crypto</button>
+        <button className="text-nyx-muted px-2 py-1 inline-flex items-center gap-1">
           Buy Stocks
-          <span className="rounded bg-emerald-100 text-emerald-700 text-[10px] px-1.5 py-0.5 font-semibold">NEW</span>
+          <span className="rounded bg-nyx-active text-nyx-accent text-[10px] px-1.5 py-0.5 font-semibold">NEW</span>
         </button>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
+      <div className="rounded-xl border border-nyx-border bg-nyx-card p-4 space-y-4">
         <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">You Pay</p>
+          <p className="text-xs font-semibold text-nyx-muted uppercase tracking-wide mb-1">You Pay</p>
           <div className="flex gap-2">
             <input
               type="number"
@@ -73,13 +75,13 @@ export default function FiatStepBuy({ state, invoiceAmount, onChange, onProceed 
               step="0.01"
               value={state.amount}
               onChange={(e) => onChange({ amount: e.target.value })}
-              className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`flex-1 ${inputCls}`}
               placeholder={invoiceAmount.toFixed(2)}
             />
             <select
               value={state.currency}
               onChange={(e) => onChange({ currency: e.target.value as FiatCurrency })}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={inputCls}
             >
               <option value="USD">{CURRENCY_BADGE.USD} USD</option>
               <option value="EUR">{CURRENCY_BADGE.EUR} EUR</option>
@@ -88,15 +90,15 @@ export default function FiatStepBuy({ state, invoiceAmount, onChange, onProceed 
         </div>
 
         <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">You Receive (estimate)</p>
+          <p className="text-xs font-semibold text-nyx-muted uppercase tracking-wide mb-1">You Receive (estimate)</p>
           <div className="flex gap-2">
-            <div className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800">
+            <div className="flex-1 rounded-lg border border-nyx-border bg-nyx-secondary px-3 py-2 text-nyx-text">
               {fmt(receiveAmount)} {state.token}
             </div>
             <select
               value={state.token}
               onChange={(e) => onChange({ token: e.target.value as FiatToken })}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={inputCls}
             >
               <option value="MON">{TOKEN_BADGE.MON} MON</option>
               <option value="USDCm">{TOKEN_BADGE.USDCm} USDCm</option>
@@ -106,7 +108,7 @@ export default function FiatStepBuy({ state, invoiceAmount, onChange, onProceed 
           </div>
         </div>
 
-        <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-sm text-slate-600">
+        <div className="rounded-lg bg-nyx-secondary border border-nyx-border px-3 py-2 text-sm text-nyx-muted">
           Your order: {TOKEN_BADGE[state.token]} {fmt(receiveAmount)} {state.token} for {CURRENCY_BADGE[state.currency]} {fmt(payAmount, 2)} {state.currency}
         </div>
 
@@ -114,13 +116,13 @@ export default function FiatStepBuy({ state, invoiceAmount, onChange, onProceed 
           type="button"
           disabled={!canProceed}
           onClick={onProceed}
-          className="w-full rounded-lg bg-blue-600 text-white py-2.5 font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
+          className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
         >
           Proceed - Buy {state.token}
         </button>
       </div>
 
-      <p className="text-center text-xs text-slate-500">Powered by AlchemyPay Testnet</p>
+      <p className="text-center text-xs text-nyx-muted">Powered by AlchemyPay Testnet</p>
     </div>
   )
 }

@@ -99,16 +99,16 @@ export default function FiatModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60" onClick={closeAndReset} />
-      <div className="relative w-full max-w-xl rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-2xl">
+      <div className="relative w-full max-w-xl rounded-2xl border border-nyx-border bg-nyx-secondary p-5 shadow-2xl">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">AlchemyPay Testnet</h2>
-            <p className="text-xs text-slate-500">Simulated fiat payment flow</p>
+            <h2 className="text-lg font-semibold text-nyx-text">AlchemyPay Testnet</h2>
+            <p className="text-xs text-nyx-muted">Simulated fiat payment flow</p>
           </div>
           <button
             type="button"
             onClick={closeAndReset}
-            className="rounded-md border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100"
+            className="rounded-md border border-nyx-border bg-nyx-card p-1.5 text-nyx-muted hover:bg-nyx-hover"
             aria-label="Close"
           >
             <X size={16} />
@@ -117,9 +117,9 @@ export default function FiatModal({
 
         {(step === 'wallet' || step === 'payment') && (
           <div className="grid grid-cols-3 gap-1.5 mb-4">
-            <div className={`h-1 rounded-full ${step === 'wallet' || step === 'payment' ? 'bg-blue-500' : 'bg-slate-200'}`} />
-            <div className={`h-1 rounded-full ${step === 'payment' ? 'bg-blue-500' : 'bg-slate-200'}`} />
-            <div className="h-1 rounded-full bg-slate-200" />
+            <div className={`h-1 rounded-full ${step === 'wallet' || step === 'payment' ? 'bg-nyx-accent' : 'bg-nyx-hover'}`} />
+            <div className={`h-1 rounded-full ${step === 'payment' ? 'bg-nyx-accent' : 'bg-nyx-hover'}`} />
+            <div className="h-1 rounded-full bg-nyx-hover" />
           </div>
         )}
 
@@ -154,7 +154,7 @@ export default function FiatModal({
               onProceed={() => { void handleFinalProceed() }}
             />
             {processingError && (
-              <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              <div className="rounded-lg border border-nyx-danger/30 bg-nyx-card px-3 py-2 text-sm text-nyx-danger">
                 {processingError}
               </div>
             )}
@@ -162,10 +162,10 @@ export default function FiatModal({
         )}
 
         {step === 'processing' && (
-          <div className="rounded-xl border border-slate-200 bg-white p-8 text-center space-y-3">
-            <Loader2 size={22} className="mx-auto animate-spin text-blue-600" />
-            <h3 className="text-lg font-semibold text-slate-900">Processing payment...</h3>
-            <p className="text-sm text-slate-500">Submitting your order on AlchemyPay Testnet.</p>
+          <div className="rounded-xl border border-nyx-border bg-nyx-card p-8 text-center space-y-3">
+            <Loader2 size={22} className="mx-auto animate-spin text-nyx-accent" />
+            <h3 className="text-lg font-semibold text-nyx-text">Processing payment...</h3>
+            <p className="text-sm text-nyx-muted">Submitting your order on AlchemyPay Testnet.</p>
           </div>
         )}
 

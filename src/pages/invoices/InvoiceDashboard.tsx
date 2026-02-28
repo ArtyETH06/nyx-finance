@@ -67,6 +67,7 @@ export default function InvoiceDashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [loadingDots, setLoadingDots] = useState(1)
 
   const address = activeAccount?.address ?? ''
 
@@ -100,6 +101,14 @@ export default function InvoiceDashboard() {
 
   useEffect(() => subscribeInvoiceUpdates(() => { void load() }), [address])
 
+  useEffect(() => {
+    if (!loading) return
+    const timer = window.setInterval(() => {
+      setLoadingDots((prev) => (prev % 3) + 1)
+    }, 450)
+    return () => window.clearInterval(timer)
+  }, [loading])
+
   return (
     <main className="px-8 py-10 max-w-4xl">
       <div className="flex items-center justify-between mb-8">
@@ -124,10 +133,10 @@ export default function InvoiceDashboard() {
       </div>
 
       {loading && (
-        <div className="fixed inset-0 flex items-center justify-center">
+        <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20">
           <div className="flex items-center gap-2 text-nyx-muted text-sm">
             <Loader2 size={16} className="animate-spin text-nyx-accent" />
-            Loading invoices...
+            {`Loading Invoices${'.'.repeat(loadingDots)}`}
           </div>
         </div>
       )}
