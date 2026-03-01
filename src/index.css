@@ -4,30 +4,30 @@
 
 /* ── Light theme (default) ── */
 :root, .theme-light {
-  --nyx-bg:                #F6F9FC;
-  --nyx-secondary:         #F3F4F6;
+  --nyx-bg:                #F5F7FA;
+  --nyx-secondary:         #EDF0F5;
   --nyx-card:              #FFFFFF;
-  --nyx-border:            #E6EAF2;
-  --nyx-divider:           #EEF2F7;
-  --nyx-text:              #0A0F1C;
-  --nyx-muted:             #4B5563;
-  --nyx-placeholder:       #9CA3AF;
-  --nyx-label:             #6B7280;
+  --nyx-border:            #E3E8EF;
+  --nyx-divider:           #ECF0F5;
+  --nyx-text:              #0A2540;
+  --nyx-muted:             #425466;
+  --nyx-placeholder:       #9BABB8;
+  --nyx-label:             #5B6B7C;
   --nyx-input-bg:          #FFFFFF;
-  --nyx-input-border:      #D1D5DB;
-  --nyx-input-focus-ring:  rgba(99, 91, 255, 0.15);
-  --nyx-accent:            #635BFF;
-  --nyx-accent-h:          #4F46E5;
-  --nyx-focus-ring:        rgba(99, 91, 255, 0.4);
-  --nyx-success:           #16A34A;
-  --nyx-danger:            #DC2626;
-  --nyx-warning:           #F59E0B;
-  --nyx-hover:             rgba(10, 15, 28, 0.035);
-  --nyx-active:            rgba(99, 91, 255, 0.10);
-  --nyx-shadow-accent:     0 1px 2px rgba(0,0,0,0.05);
-  --nyx-shadow-card-hover: 0 1px 2px rgba(16,24,40,0.04);
-  --nyx-shadow-pill:       0 0 0 1px rgba(99, 91, 255, 0.2);
-  --nyx-card-shadow:       0 1px 2px rgba(16,24,40,0.04);
+  --nyx-input-border:      #C9D0DA;
+  --nyx-input-focus-ring:  rgba(37, 99, 235, 0.14);
+  --nyx-accent:            #2563EB;
+  --nyx-accent-h:          #1E55D0;
+  --nyx-focus-ring:        rgba(37, 99, 235, 0.35);
+  --nyx-success:           #0E7F4F;
+  --nyx-danger:            #C0392B;
+  --nyx-warning:           #D97706;
+  --nyx-hover:             rgba(10, 37, 64, 0.04);
+  --nyx-active:            rgba(37, 99, 235, 0.08);
+  --nyx-shadow-accent:     0 1px 3px rgba(37,99,235,0.18), 0 1px 2px rgba(37,99,235,0.10);
+  --nyx-shadow-card-hover: 0 4px 12px rgba(16,24,40,0.08), 0 1px 3px rgba(16,24,40,0.04);
+  --nyx-shadow-pill:       0 0 0 1px rgba(37,99,235,0.22);
+  --nyx-card-shadow:       0 1px 3px rgba(16,24,40,0.06), 0 1px 2px rgba(16,24,40,0.04);
   --nyx-logo-filter:       brightness(0) saturate(100%);
 }
 
@@ -77,7 +77,7 @@ body {
     border: 1px solid var(--nyx-border);
     border-radius: 10px;
     box-shadow: var(--nyx-card-shadow);
-    transition: box-shadow 120ms ease, border-color 120ms ease, background-color 120ms ease;
+    transition: box-shadow 150ms ease, border-color 150ms ease, background-color 150ms ease;
   }
   .nyx-card:hover {
     box-shadow: var(--nyx-shadow-card-hover);
@@ -86,24 +86,25 @@ body {
   /* Primary CTA button */
   .btn-primary {
     width: 100%;
-    padding: 10px 16px;
+    padding: 10px 18px;
     background-color: var(--nyx-accent);
     color: #fff;
-    font-weight: 500;
+    font-weight: 600;
     font-size: 0.875rem;
-    border-radius: 8px;
+    letter-spacing: 0.01em;
+    border-radius: 7px;
     border: none;
     cursor: pointer;
     box-shadow: var(--nyx-shadow-accent);
-    transition: background-color 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+    transition: background-color 140ms ease, box-shadow 140ms ease;
   }
   .btn-primary:hover:not(:disabled) {
     background-color: var(--nyx-accent-h);
-    filter: brightness(1.01);
+    box-shadow: 0 2px 6px rgba(37,99,235,0.28);
   }
   .btn-primary:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 3px rgba(99, 91, 255, 0.15), var(--nyx-shadow-accent);
+    box-shadow: 0 0 0 3px var(--nyx-input-focus-ring), var(--nyx-shadow-accent);
   }
   .btn-primary:disabled {
     opacity: 0.45;
@@ -115,22 +116,25 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 10px 16px;
+    padding: 9px 16px;
     background-color: var(--nyx-card);
-    border: 1px solid #D1D5DB;
-    border-radius: 8px;
+    border: 1px solid var(--nyx-border);
+    border-radius: 7px;
     color: var(--nyx-text);
     font-size: 0.875rem;
+    font-weight: 500;
     cursor: pointer;
-    transition: border-color 120ms ease, color 120ms ease, background-color 120ms ease;
+    box-shadow: 0 1px 2px rgba(16,24,40,0.04);
+    transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
   }
   .btn-secondary:hover {
-    border-color: #C4CAD6;
-    background-color: #FCFDFE;
+    border-color: #B8C4D0;
+    background-color: #F8FAFC;
+    box-shadow: 0 1px 4px rgba(16,24,40,0.08);
   }
   .btn-secondary:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 3px rgba(99, 91, 255, 0.15);
+    box-shadow: 0 0 0 3px var(--nyx-input-focus-ring);
     border-color: var(--nyx-accent);
   }
 
@@ -139,17 +143,27 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 10px 16px;
-    background-color: var(--nyx-danger);
-    border: 1px solid var(--nyx-danger);
-    border-radius: 8px;
-    color: #fff;
+    padding: 9px 16px;
+    background-color: #FEF2F2;
+    border: 1px solid #FECACA;
+    border-radius: 7px;
+    color: var(--nyx-danger);
     font-size: 0.875rem;
+    font-weight: 500;
     cursor: pointer;
-    transition: background-color 120ms ease, border-color 120ms ease, filter 120ms ease;
+    transition: background-color 140ms ease, border-color 140ms ease;
   }
   .btn-danger:hover {
-    filter: brightness(0.96);
+    background-color: #FEE2E2;
+    border-color: #FCA5A5;
+  }
+  .theme-darknode .btn-danger {
+    background-color: rgba(239,68,68,0.10);
+    border-color: rgba(239,68,68,0.25);
+    color: var(--nyx-danger);
+  }
+  .theme-darknode .btn-danger:hover {
+    background-color: rgba(239,68,68,0.18);
   }
 
   /* Inline text link */
@@ -169,11 +183,11 @@ body {
     width: 100%;
     background-color: var(--nyx-input-bg);
     border: 1px solid var(--nyx-input-border);
-    border-radius: 8px;
-    padding: 10px 12px;
+    border-radius: 7px;
+    padding: 9px 12px;
     color: var(--nyx-text);
     font-size: 0.875rem;
-    transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+    transition: border-color 140ms ease, box-shadow 140ms ease;
   }
   .nyx-input::placeholder {
     color: var(--nyx-placeholder);
