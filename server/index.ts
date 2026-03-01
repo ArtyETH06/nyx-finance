@@ -1,10 +1,14 @@
 import express from 'express'
 import cors from 'cors'
-import 'dotenv/config'
+import dotenv from 'dotenv'
 import { contractsRouter } from './routes/contracts.js'
 import { paychecksRouter } from './routes/paychecks.js'
 import { scheduledPaymentsRouter } from './routes/scheduledPayments.js'
 import { emailRouter } from './routes/email.js'
+
+// Load both .env and .env.local for local development.
+dotenv.config()
+dotenv.config({ path: '.env.local', override: true })
 
 const app = express()
 
