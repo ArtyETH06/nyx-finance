@@ -280,7 +280,7 @@ export default function Wallet() {
 
       await waitForOnchainConfirmation(window.ethereum, txHash)
       setDepositAmount('')
-      await refreshPrivateBalancesWithRetries(token)
+      await refreshAllBalances(token)
       toast.show(
         `Deposited ${depositAmount} ${token.symbol} from ${shortenAddress(publicAddress)}`,
         'success',
