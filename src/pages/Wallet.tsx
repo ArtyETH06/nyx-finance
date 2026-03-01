@@ -241,13 +241,6 @@ export default function Wallet() {
     }
   }
 
-  async function refreshPrivateBalancesWithRetries(token: Token, attempts = 8): Promise<void> {
-    for (let i = 0; i < attempts; i++) {
-      await refreshAllBalances(token)
-      if (i < attempts - 1) await sleep(2500)
-    }
-  }
-
   async function handleDeposit() {
     if (!publicAddress || !depositAmount) return
     const token = getTokenByAddress(depositToken)
@@ -329,7 +322,7 @@ export default function Wallet() {
       }
 
       setWithdrawAmount('')
-      await refreshPrivateBalancesWithRetries(token, 5)
+      await refreshAllBalances(token)
       const result = results[results.length - 1]
       const relayId = result?.relayId
       let txHash = result?.txHash
