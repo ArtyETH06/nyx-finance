@@ -25,8 +25,10 @@ const STATUS_LABELS: Record<Invoice['status'], string> = {
   paid: invoiceStatusLabel('paid'),
 }
 
-function formatAmount(amount: number, symbol: string) {
-  return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${symbol}`
+function formatAmount(amount: number, symbol: string, isSent: boolean) {
+  const sign = isSent ? '+' : '-'
+  const normalized = symbol.startsWith('$') ? symbol : `$${symbol}`
+  return `${sign} ${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${normalized}`
 }
 
 function formatDate(iso: string) {
@@ -93,7 +95,7 @@ export default function InvoiceDashboard() {
   }, [loading])
 
   return (
-    <main className="px-8 py-10 max-w-4xl mx-auto w-full md:-translate-x-16">
+    <main className="px-8 py-10 max-w-4xl mx-auto w-full md:ml-[280px]">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-semibold text-nyx-text tracking-tight">Invoices</h1>
@@ -193,7 +195,7 @@ export default function InvoiceDashboard() {
 
                   {/* Amount */}
                   <p className="text-nyx-text text-sm font-semibold tabular-nums w-[110px] text-right flex-shrink-0">
-                    {formatAmount(inv.amount, inv.tokenSymbol ?? inv.currencySymbol ?? 'TOKEN')}
+                    {formatAmount(inv.amount, inv.tokenSymbol ?? inv.currencySymbol ?? 'TOKEN', isSent)}
                   </p>
                 </div>
               </button>
