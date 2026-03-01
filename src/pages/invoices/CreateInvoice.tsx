@@ -36,7 +36,7 @@ const empty: FormState = {
   payerFirstName:  'John',
   payerLastName:   'Whipe',
   payerCompany:    'NYX Labs',
-  payerEmail:      '',
+  payerEmail:      'arty.crypto06@gmail.com',
   lineItems:       [
     { title: 'Smart Contract Development', description: 'Development of ERC-20 token contract and deployment on Monad testnet.', quantity: '1', amount: '0.0314' },
     { title: 'Integration & QA', description: 'Wallet integration, payment flow checks, and final validation on testnet.', quantity: '1', amount: '0.042' },
