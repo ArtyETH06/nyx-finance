@@ -17,7 +17,8 @@ import { buildInvoicePdf, downloadPdf, sha256Blob } from '../../lib/invoicePdf'
 import { getTokenByAddress } from '../../lib/tokens'
 
 function fmtMoney(amount: number, symbol: string) {
-  return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $${symbol}`
+  void symbol
+  return amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function fmtLineMeta(item: Invoice['lineItems'][number], symbol: string): string | null {
@@ -465,22 +466,16 @@ export default function InvoiceDetail() {
               </div>
             </div>
           )}
-          {invoice.status === 'paid' && (invoice.payment?.txHash || invoice.payment?.relayId) && (
-            <div className="bg-[rgba(34,197,94,0.05)] border border-[rgba(34,197,94,0.15)] rounded-lg p-4 space-y-3">
-              <p className="text-[10px] uppercase tracking-widest text-nyx-success font-semibold">Payment</p>
-
-              {invoice.payment?.txHash && (
-                <a
-                  href={`https://testnet.monadexplorer.com/tx/${invoice.payment.txHash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-nyx-success text-xs inline-flex items-center gap-1.5 underline"
-                >
-                  <ExternalLink size={12} />
-                  Open in Explorer
-                </a>
-              )}
-            </div>
+          {invoice.status === 'paid' && invoice.payment?.txHash && (
+            <a
+              href={`https://testnet.monadexplorer.com/tx/${invoice.payment.txHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-nyx-success text-xs inline-flex items-center gap-1.5 underline"
+            >
+              <ExternalLink size={12} />
+              Open in Explorer
+            </a>
           )}
           {invoice.rejectionReason && (
             <div className="bg-[rgba(239,68,68,0.08)] border border-nyx-danger/30 rounded-lg p-3">

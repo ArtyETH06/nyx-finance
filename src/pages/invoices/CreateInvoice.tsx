@@ -335,7 +335,7 @@ export default function CreateInvoice() {
   return (
     <main className="px-4 py-10 w-full max-w-none">
       <h1 className="text-2xl font-semibold text-nyx-text tracking-tight mb-8">Create Invoice</h1>
-      <div className="grid grid-cols-1 xl:grid-cols-[500px_minmax(560px,1fr)] gap-6 items-start">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(560px,1fr)_580px] gap-6 items-start">
         <form onSubmit={handleSubmit} className="space-y-8 max-w-2xl">
 
           {/* Issuer */}
@@ -488,17 +488,17 @@ export default function CreateInvoice() {
 
         </form>
 
-        <aside className="xl:sticky xl:top-6 xl:order-first">
+        <aside className="xl:sticky xl:top-6 pr-8">
           <div className="nyx-card overflow-hidden">
             <div className="px-4 py-3 border-b border-nyx-border flex items-center justify-between">
               <p className="text-[10px] uppercase tracking-widest text-nyx-muted">Live PDF Preview</p>
               {previewBusy && <p className="text-[11px] text-nyx-muted">Updating…</p>}
             </div>
-            <div className="h-[820px] bg-[#eef2f7]">
+            <div className="aspect-[210/297] bg-[#eef2f7]">
               {previewUrl ? (
                 <iframe
                   title="Live invoice PDF preview"
-                  src={previewUrl}
+                  src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=0&zoom=page-fit`}
                   className="w-full h-full border-0"
                 />
               ) : (
