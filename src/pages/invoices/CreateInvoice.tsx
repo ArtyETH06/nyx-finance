@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUnlink } from '@unlink-xyz/react'
 import { loadProfile } from '../../lib/profile'
@@ -6,6 +6,7 @@ import { toast } from '../../lib/toast'
 import { buildInvoicePdf, sha256Blob } from '../../lib/invoicePdf'
 import { computeDueDateIso, formatDueDate, formatIssueDate, makeInvoiceId } from '../../lib/invoices'
 import { INVOICE_TOKEN_OPTIONS, getInvoiceTokenBySymbol, type InvoiceTokenSymbol } from '../../lib/tokens'
+import { buildInvoiceEmailHtml } from '../../lib/invoiceEmail'
 
 interface LineItemForm {
   title: string
@@ -22,6 +23,7 @@ interface FormState {
   payerFirstName:  string
   payerLastName:   string
   payerCompany:    string
+  payerEmail:      string
   lineItems:       LineItemForm[]
   tokenSymbol:     InvoiceTokenSymbol
 }
@@ -34,6 +36,7 @@ const empty: FormState = {
   payerFirstName:  'John',
   payerLastName:   'Whipe',
   payerCompany:    'NYX Labs',
+  payerEmail:      '',
   lineItems:       [
     { title: 'Smart Contract Development', description: 'Development of ERC-20 token contract and deployment on Monad testnet.', quantity: '1', amount: '0.0314' },
     { title: 'Integration & QA', description: 'Wallet integration, payment flow checks, and final validation on testnet.', quantity: '1', amount: '0.042' },
@@ -83,6 +86,7 @@ export default function CreateInvoice() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [previewBusy, setPreviewBusy] = useState(false)
   const [previewError, setPreviewError] = useState<string | null>(null)
+  const [previewTab, setPreviewTab] = useState<'pdf' | 'email'>('pdf')
   const previewInvoiceIdRef = useRef(makeInvoiceId(new Date()))
 
   // Pre-fill issuer from saved profile
@@ -256,6 +260,29 @@ export default function CreateInvoice() {
       toast.show('Invoice created successfully.')
       const data = await res.json()
       const id = (data.invoice?._id ?? data.invoice?.invoiceId ?? data.id) as string
+
+      // Fire-and-forget email — don't block navigation on email failure
+      if (form.payerEmail.trim()) {
+        const issuerName = [form.issuerFirstName, form.issuerLastName].filter(Boolean).join(' ') || 'Issuer'
+        fetch('/api/email/invoice', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: form.payerEmail.trim(),
+            invoiceId,
+            title: normalizedInvoiceTitle,
+            issuerName,
+            issuerCompany: form.issuerCompany || undefined,
+            lineItems: parsedLineItems,
+            total: totalAmount,
+            tokenSymbol: selectedToken.symbol,
+            issueDate,
+            dueDate,
+            payUrl: `${window.location.origin}/pay/${invoiceId}`,
+          }),
+        }).catch(() => {/* silent — email is best-effort */})
+      }
+
       navigate(`/invoices/${id}`)
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Something went wrong.')
@@ -332,6 +359,40 @@ export default function CreateInvoice() {
     }
   }, [form, activeAccount?.address])
 
+  const emailPreviewHtml = useMemo(() => {
+    const selectedToken = getInvoiceTokenBySymbol(form.tokenSymbol)
+    const parsedLines = form.lineItems
+      .map((item) => ({
+        title: item.title.trim(),
+        description: item.description.trim(),
+        quantity: Number(item.quantity || '1'),
+        unitPrice: Number(item.amount),
+      }))
+      .map((item) => ({ ...item, amount: item.quantity * item.unitPrice }))
+      .filter((item) => item.title && Number.isFinite(item.amount) && item.amount > 0)
+
+    const lines = parsedLines.length > 0
+      ? parsedLines
+      : [{ title: 'Service', description: 'Service description', quantity: 1, unitPrice: 0.01, amount: 0.01 }]
+
+    const total = lines.reduce((acc, l) => acc + l.amount, 0)
+    const now = new Date().toISOString()
+    const issuerName = [form.issuerFirstName, form.issuerLastName].filter(Boolean).join(' ') || 'Issuer'
+
+    return buildInvoiceEmailHtml({
+      invoiceId: previewInvoiceIdRef.current,
+      title: form.invoiceTitle.trim() || 'Invoice',
+      issuerName,
+      issuerCompany: form.issuerCompany || undefined,
+      lineItems: lines,
+      total,
+      tokenSymbol: selectedToken.symbol,
+      issueDate: formatIssueDate(now),
+      dueDate: formatDueDate(now, computeDueDateIso(now)),
+      payUrl: `${window.location.origin}/pay/${previewInvoiceIdRef.current}`,
+    })
+  }, [form])
+
   return (
     <main className="px-20 py-10 w-full max-w-none">
       <h1 className="text-2xl font-semibold text-nyx-text tracking-tight mb-8">Create Invoice</h1>
@@ -367,6 +428,9 @@ export default function CreateInvoice() {
             </div>
             <Field label="Company">
               <input className={inputCls} value={form.payerCompany} onChange={set('payerCompany')} placeholder="Client Corp" />
+            </Field>
+            <Field label="Email">
+              <input className={inputCls} type="email" value={form.payerEmail} onChange={set('payerEmail')} placeholder="customer@example.com" />
             </Field>
           </div>
 
@@ -490,23 +554,57 @@ export default function CreateInvoice() {
 
         <aside className="xl:sticky xl:top-6">
           <div className="nyx-card overflow-hidden">
-            <div className="px-4 py-3 border-b border-nyx-border flex items-center justify-between">
-              <p className="text-[10px] uppercase tracking-widest text-nyx-muted">Live PDF Preview</p>
-              {previewBusy && <p className="text-[11px] text-nyx-muted">Updating…</p>}
-            </div>
-            <div className="aspect-[210/297] bg-[#eef2f7]">
-              {previewUrl ? (
-                <iframe
-                  title="Live invoice PDF preview"
-                  src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=0&zoom=page-fit`}
-                  className="w-full h-full border-0"
-                />
-              ) : (
-                <div className="h-full flex items-center justify-center text-sm text-nyx-muted px-6 text-center">
-                  {previewError ?? 'Generating preview...'}
-                </div>
+            {/* Tab header */}
+            <div className="px-4 border-b border-nyx-border flex items-center justify-between">
+              <div className="flex">
+                {(['email', 'pdf'] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setPreviewTab(tab)}
+                    className={[
+                      'px-4 py-3 text-xs font-semibold tracking-wide border-b-2 transition-colors',
+                      previewTab === tab
+                        ? 'border-nyx-accent text-nyx-accent'
+                        : 'border-transparent text-nyx-muted hover:text-nyx-text',
+                    ].join(' ')}
+                  >
+                    {tab === 'email' ? 'Email' : 'Invoice PDF'}
+                  </button>
+                ))}
+              </div>
+              {previewTab === 'pdf' && previewBusy && (
+                <p className="text-[11px] text-nyx-muted pr-2">Updating…</p>
               )}
             </div>
+
+            {/* PDF preview */}
+            {previewTab === 'pdf' && (
+              <div className="aspect-[210/297] bg-[#eef2f7]">
+                {previewUrl ? (
+                  <iframe
+                    title="Live invoice PDF preview"
+                    src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=0&zoom=page-fit`}
+                    className="w-full h-full border-0"
+                  />
+                ) : (
+                  <div className="h-full flex items-center justify-center text-sm text-nyx-muted px-6 text-center">
+                    {previewError ?? 'Generating preview...'}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Email preview */}
+            {previewTab === 'email' && (
+              <iframe
+                title="Live invoice email preview"
+                srcDoc={emailPreviewHtml}
+                sandbox="allow-same-origin"
+                className="w-full border-0"
+                style={{ height: '680px' }}
+              />
+            )}
           </div>
         </aside>
       </div>

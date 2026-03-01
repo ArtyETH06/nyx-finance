@@ -262,7 +262,7 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<jsPDF> {
   drawInfoRow(doc, left, valueX, y, 'ISSUE DATE', input.issueDate)
   y += 16
   drawInfoRow(doc, left, valueX, y, 'DUE DATE', input.dueDate)
-  y += 26
+  y += 38
 
   const issuerBottom = drawPartyBlock(doc, left, y, 'ISSUER', input.issuerInfo, '')
   const payerBottom = drawPartyBlock(doc, left + 260, y, 'CUSTOMER', input.payerInfo, input.payerAddress)

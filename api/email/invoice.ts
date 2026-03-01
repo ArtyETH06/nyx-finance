@@ -1,6 +1,6 @@
 import { Resend } from 'resend'
 
-const FROM = 'NYX Invoicing <onboarding@resend.dev>'
+const FROM = 'NYX Invoicing <invoices@arty-industries.site>'
 
 function buildInvoiceEmailHtml(params: {
   invoiceId: string
@@ -72,7 +72,7 @@ function buildInvoiceEmailHtml(params: {
               <td style="font-size:13px;color:#6B7280;">Issued ${issueDate}</td>
               <td style="text-align:right;">
                 <span style="font-size:11px;font-weight:600;color:#6B7280;text-transform:uppercase;letter-spacing:0.06em;margin-right:12px;">Total</span>
-                <span style="font-size:20px;font-weight:700;color:#0A0F1C;">${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${tokenSymbol}</span>
+                <span style="font-size:20px;font-weight:700;color:#0A0F1C;">${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $${tokenSymbol}</span>
               </td>
             </tr>
           </table>
@@ -116,7 +116,7 @@ export default async function handler(req: any, res: any) {
     const { error } = await resend.emails.send({
       from: FROM,
       to: [to],
-      subject: `Invoice ${invoiceId} — ${total?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${tokenSymbol}`,
+      subject: `Invoice ${invoiceId} — ${total?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $${tokenSymbol}`,
       html,
     })
 

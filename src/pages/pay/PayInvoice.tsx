@@ -39,13 +39,15 @@ function explorerUrl(txHash: string): string {
   return `https://testnet.monadexplorer.com/tx/${txHash}`
 }
 
-function fmtAmount(amount: number, token: string): string {
-  return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${token}`
+function fmtAmount(amount: number, token: string, prefixDollar = false): string {
+  const sym = prefixDollar ? (token.startsWith('$') ? token : `$${token}`) : token
+  return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${sym}`
 }
 
 function fmtLineMeta(item: Invoice['lineItems'][number], token: string): string | null {
-  if (!item.quantity || !item.unitPrice) return null
-  return `${item.quantity} x ${fmtAmount(item.unitPrice, token)}`
+  void token
+  if (!item.quantity) return null
+  return `Qty ${item.quantity}`
 }
 
 function statusLabel(status: Invoice['status']): string {
@@ -392,7 +394,7 @@ export default function PayInvoice() {
           }) as string
           balance = BigInt(raw)
         }
-        setTokenBalanceText(`${formatUnits(balance, decimals)} ${invoice.tokenSymbol}`)
+        setTokenBalanceText(`${formatUnits(balance, decimals)} $${invoice.tokenSymbol}`)
       } catch {
         setTokenBalanceText('Unavailable')
       }
@@ -560,8 +562,8 @@ export default function PayInvoice() {
   const primaryButtonLabel = processing
     ? processingLabel
     : paymentMethod === 'metamask'
-      ? (payerAddress ? `Pay ${fmtAmount(invoice.amount, invoice.tokenSymbol)}` : 'Connect MetaMask')
-      : `Pay ${fmtAmount(invoice.amount, invoice.tokenSymbol)}`
+      ? (payerAddress ? `Pay ${fmtAmount(invoice.amount, invoice.tokenSymbol, true)}` : 'Connect MetaMask')
+      : `Pay ${fmtAmount(invoice.amount, invoice.tokenSymbol, true)}`
 
   async function handlePrimaryPaymentAction() {
     if (!isPayable || interactionLocked) return
@@ -654,7 +656,6 @@ export default function PayInvoice() {
             {invoice.issuerInfo?.company && (
               <p className="text-xs text-nyx-muted">{invoice.issuerInfo.company}</p>
             )}
-            <p className="text-xs text-nyx-muted mt-1 break-all font-mono">{invoice.issuerAddress}</p>
           </div>
           <div className="rounded-lg border border-nyx-border bg-nyx-hover p-3">
             <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Payer</p>
@@ -683,7 +684,7 @@ export default function PayInvoice() {
           </div>
           <div className="pt-2 border-t border-nyx-border flex items-center justify-between">
             <p className="text-xs uppercase tracking-widest text-nyx-muted">Total</p>
-            <p className="text-sm text-nyx-text font-semibold">{fmtAmount(totalFromLines || invoice.amount, invoice.tokenSymbol)}</p>
+            <p className="text-sm text-nyx-text font-semibold">{fmtAmount(totalFromLines || invoice.amount, invoice.tokenSymbol, true)}</p>
           </div>
         </div>
 
