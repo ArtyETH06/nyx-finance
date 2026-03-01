@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUnlink, useUnlinkBalances, parseAmount } from '@unlink-xyz/react'
 import {
@@ -166,6 +166,10 @@ export default function Wallet() {
 
   const address = activeAccount?.address ?? ''
 
+  // Track which pending deposits we've locally dismissed (balance confirmed but SDK status stuck)
+  const [dismissedTxIds, setDismissedTxIds] = useState<Set<string>>(new Set())
+  const prevBalancesRef = useRef<Record<string, bigint>>({})
+
   // Guard
   useEffect(() => {
     if (ready && (!walletExists || !activeAccount)) navigate('/')
@@ -177,6 +181,28 @@ export default function Wallet() {
       forceResync()
     }
   }, [syncError, busy, forceResync])
+
+  // When a balance increases for a token that has a 'pending' deposit, dismiss it locally.
+  // The SDK status stays stuck at 'pending' even after confirmation, so we derive it from balance.
+  useEffect(() => {
+    if (!balances) return
+    const curr: Record<string, bigint> = Object.fromEntries(
+      Object.entries(balances).map(([k, v]) => [k.toLowerCase(), v])
+    )
+    const prev = prevBalancesRef.current
+    const toAdd: string[] = []
+    for (const pd of pendingDeposits) {
+      if (pd.status !== 'pending') continue
+      const key = isNativeAddress(pd.token) ? NATIVE_TOKEN_ADDRESS.toLowerCase() : pd.token.toLowerCase()
+      if ((curr[key] ?? 0n) > (prev[key] ?? 0n)) {
+        toAdd.push(pd.txId)
+      }
+    }
+    if (toAdd.length > 0) {
+      setDismissedTxIds(s => { const n = new Set(s); toAdd.forEach(id => n.add(id)); return n })
+    }
+    prevBalancesRef.current = curr
+  }, [balances, pendingDeposits])
 
   // Auto-select first withdraw token that has a private balance
   useEffect(() => {
@@ -436,7 +462,7 @@ export default function Wallet() {
 
         {balancesLoading ? (
           <p className="text-nyx-muted text-sm">Loading balances...</p>
-        ) : balanceEntries.length === 0 && pendingDeposits.filter(pd => pd.status === 'pending').length === 0 ? (
+        ) : balanceEntries.length === 0 && pendingDeposits.filter(pd => pd.status === 'pending' && !dismissedTxIds.has(pd.txId)).length === 0 ? (
           <div className="text-center py-6">
             <p className="text-nyx-muted text-sm">No private assets yet.</p>
             <p className="text-nyx-muted text-xs mt-1">Deposit tokens to get started.</p>
@@ -477,7 +503,7 @@ export default function Wallet() {
                 </div>
               )
             })}
-            {pendingDeposits.filter(pd => pd.status === 'pending').map((pd) => {
+            {pendingDeposits.filter(pd => pd.status === 'pending' && !dismissedTxIds.has(pd.txId)).map((pd) => {
               const token = getTokenByAddress(canonicalTokenAddress(pd.token))
               const decimals = token?.decimals ?? 18
               const symbol = token?.symbol ?? '???'
