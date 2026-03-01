@@ -44,8 +44,7 @@ function fmtAmount(value: number): string {
 
 function fmtTokenSymbol(symbol: string): string {
   const trimmed = (symbol ?? '').trim()
-  if (!trimmed) return '$TOKEN'
-  return trimmed.startsWith('$') ? trimmed : `$${trimmed}`
+  return trimmed || 'TOKEN'
 }
 
 function fullName(info?: InvoicePartyInfo): string {
@@ -351,7 +350,7 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<jsPDF> {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(11)
   doc.text('TOTAL', left, y)
-  doc.text(`${fmtAmount(total)} ${tokenSymbol}`, right, y, { align: 'right' })
+  doc.text(`${fmtAmount(total)} $${tokenSymbol}`, right, y, { align: 'right' })
 
   // ── Payment Proof (only on paid invoices) ──────────────────────────────────
   if (input.status === 'paid' && (input.payment?.txHash || input.payment?.relayId)) {
