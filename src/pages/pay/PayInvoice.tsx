@@ -77,6 +77,30 @@ function normalizeError(err: unknown): string {
   return 'Payment failed'
 }
 
+async function readJsonResponse<T>(res: Response, fallbackError: string): Promise<T> {
+  const raw = await res.text()
+  let data: Record<string, unknown> | null = null
+  try {
+    data = raw ? (JSON.parse(raw) as Record<string, unknown>) : null
+  } catch {
+    data = null
+  }
+
+  if (!res.ok) {
+    const message =
+      (data?.error as string | undefined) ??
+      (data?.message as string | undefined) ??
+      `${fallbackError} (HTTP ${res.status})`
+    throw new Error(message)
+  }
+
+  if (!data) {
+    throw new Error(`${fallbackError}: received a non-JSON response`)
+  }
+
+  return data as T
+}
+
 async function retryTx<T>(label: string, fn: () => Promise<T>, retries = 2, delayMs = 1200): Promise<T> {
   let lastError: unknown
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -211,8 +235,10 @@ export default function PayInvoice() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ payerAddress: depositWallet.address }),
       })
-      const startData = await startRes.json().catch(() => ({}))
-      if (!startRes.ok) throw new Error(startData.error ?? 'Failed to prepare payment settlement')
+      const startData = await readJsonResponse<Record<string, any>>(
+        startRes,
+        'Failed to prepare payment settlement'
+      )
 
       const depositTo = startData.deposit?.to
       const depositCalldata = startData.deposit?.calldata
@@ -279,8 +305,10 @@ export default function PayInvoice() {
           depositTxHash: depositTx.hash,
         }),
       })
-      const confirmData = await confirmRes.json().catch(() => ({}))
-      if (!confirmRes.ok) throw new Error(confirmData.error ?? 'Failed to confirm payment')
+      const confirmData = await readJsonResponse<Record<string, any>>(
+        confirmRes,
+        'Failed to confirm payment'
+      )
 
       const paidInvoice = normalizeInvoiceRecord(confirmData.invoice as Record<string, unknown>)
       setInvoice(paidInvoice)
@@ -314,8 +342,7 @@ export default function PayInvoice() {
       setError(null)
       try {
         const res = await fetch(`/api/contracts/${id}?ts=${Date.now()}`, { cache: 'no-store' })
-        if (!res.ok) throw new Error('Invoice not found')
-        const raw = await res.json() as Record<string, unknown>
+        const raw = await readJsonResponse<Record<string, unknown>>(res, 'Invoice not found')
         setInvoice(normalizeInvoiceRecord(raw))
       } catch (err) {
         setError(normalizeError(err))
@@ -416,8 +443,7 @@ export default function PayInvoice() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ payerAddress }),
       })
-      const startData = await startRes.json().catch(() => ({}))
-      if (!startRes.ok) throw new Error(startData.error ?? 'Failed to prepare payment')
+      const startData = await readJsonResponse<Record<string, any>>(startRes, 'Failed to prepare payment')
       const depositTo = startData.deposit?.to
       const depositCalldata = startData.deposit?.calldata
       if (!isHexAddress(depositTo) || !isHexCalldata(depositCalldata)) {
@@ -462,8 +488,7 @@ export default function PayInvoice() {
           depositTxHash: txHash,
         }),
       })
-      const confirmData = await confirmRes.json().catch(() => ({}))
-      if (!confirmRes.ok) throw new Error(confirmData.error ?? 'Failed to confirm payment')
+      const confirmData = await readJsonResponse<Record<string, any>>(confirmRes, 'Failed to confirm payment')
 
       const paidInvoice = normalizeInvoiceRecord(confirmData.invoice as Record<string, unknown>)
       setInvoice(paidInvoice)
