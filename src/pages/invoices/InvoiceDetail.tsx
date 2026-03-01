@@ -16,8 +16,9 @@ import {
 import { buildInvoicePdf, downloadPdf, sha256Blob } from '../../lib/invoicePdf'
 import { getTokenByAddress } from '../../lib/tokens'
 
-function fmtMoney(amount: number, symbol: string) {
-  return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $${symbol}`
+function fmtMoney(amount: number, symbol: string, prefixDollar = false) {
+  const sym = prefixDollar ? `$${symbol}` : symbol
+  return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${sym}`
 }
 
 function payPath(invoice: Invoice): string {
@@ -359,7 +360,7 @@ export default function InvoiceDetail() {
             <span className={`text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-md ${currentStatus.cls}`}>
               {currentStatusLabel}
             </span>
-            <p className="text-nyx-text font-semibold mt-3">{fmtMoney(invoice.amount, invoice.tokenSymbol)}</p>
+            <p className="text-nyx-text font-semibold mt-3">{fmtMoney(invoice.amount, invoice.tokenSymbol, true)}</p>
           </div>
         </div>
 
@@ -405,7 +406,7 @@ export default function InvoiceDetail() {
               {invoice.lineItems.length > 1 && (
                 <div className="flex justify-between items-center pt-2 border-t border-nyx-border">
                   <p className="text-[10px] uppercase tracking-widest text-nyx-muted">Total</p>
-                  <p className="text-nyx-text text-sm font-semibold">{fmtMoney(invoice.amount, invoice.tokenSymbol)}</p>
+                  <p className="text-nyx-text text-sm font-semibold">{fmtMoney(invoice.amount, invoice.tokenSymbol, true)}</p>
                 </div>
               )}
             </div>
@@ -450,17 +451,6 @@ export default function InvoiceDetail() {
                 </div>
               </div>
             </div>
-          )}
-          {invoice.status === 'paid' && invoice.payment?.txHash && (
-            <a
-              href={`https://testnet.monadexplorer.com/tx/${invoice.payment.txHash}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-nyx-success text-xs inline-flex items-center gap-1.5 underline"
-            >
-              <ExternalLink size={12} />
-              Open in Explorer
-            </a>
           )}
           {invoice.rejectionReason && (
             <div className="bg-[rgba(239,68,68,0.08)] border border-nyx-danger/30 rounded-lg p-3">
