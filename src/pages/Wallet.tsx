@@ -10,6 +10,8 @@ import { TOKENS, NATIVE_TOKEN_ADDRESS, getTokenByAddress, displayAmount, shorten
 
 const EXPLORER = 'https://testnet.monadexplorer.com/tx'
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
+const MONAD_CHAIN_ID_DEC = 10143
+const MONAD_CHAIN_ID_HEX = `0x${MONAD_CHAIN_ID_DEC.toString(16)}`
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -25,6 +27,41 @@ function isNativeAddress(address: string): boolean {
 
 function canonicalTokenAddress(address: string): string {
   return isNativeAddress(address) ? NATIVE_TOKEN_ADDRESS : address
+}
+
+async function ensureMonadTestnet(ethereum: {
+  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
+}): Promise<void> {
+  const currentChainId = await ethereum.request({ method: 'eth_chainId' }) as string
+  if (currentChainId?.toLowerCase() === MONAD_CHAIN_ID_HEX) return
+
+  try {
+    await ethereum.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: MONAD_CHAIN_ID_HEX }],
+    })
+    return
+  } catch (switchErr) {
+    const err = switchErr as { code?: number }
+    if (err.code !== 4902) {
+      throw new Error('Please switch MetaMask to Monad Testnet (chainId 10143)')
+    }
+  }
+
+  await ethereum.request({
+    method: 'wallet_addEthereumChain',
+    params: [{
+      chainId: MONAD_CHAIN_ID_HEX,
+      chainName: 'Monad Testnet',
+      nativeCurrency: {
+        name: 'MON',
+        symbol: 'MON',
+        decimals: 18,
+      },
+      rpcUrls: ['https://testnet-rpc.monad.xyz'],
+      blockExplorerUrls: ['https://testnet.monadexplorer.com'],
+    }],
+  })
 }
 
 function SectionHeader({ icon: Icon, title }: { icon: React.ElementType; title: string }) {
@@ -134,6 +171,7 @@ export default function Wallet() {
       return
     }
     try {
+      await ensureMonadTestnet(window.ethereum)
       const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' })
       setPublicAddress(accounts[0])
       toast.show('Public wallet connected.')
@@ -165,6 +203,7 @@ export default function Wallet() {
         | undefined
       if (!result) throw new Error('No deposit result returned')
       if (!window.ethereum) throw new Error('No wallet provider found')
+      await ensureMonadTestnet(window.ethereum)
       const txParams: Record<string, string> = {
         to: result.to,
         data: result.calldata,

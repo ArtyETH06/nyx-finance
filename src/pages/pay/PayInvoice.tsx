@@ -19,6 +19,9 @@ type EthereumProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<any>
 }
 
+const MONAD_CHAIN_ID_DEC = 10143
+const MONAD_CHAIN_ID_HEX = `0x${MONAD_CHAIN_ID_DEC.toString(16)}`
+
 function isHexCalldata(value: unknown): value is string {
   return typeof value === 'string' && /^0x[0-9a-fA-F]+$/.test(value) && value.length > 2
 }
@@ -37,6 +40,39 @@ function resolveRpcUrl(): string {
 
 function explorerUrl(txHash: string): string {
   return `https://testnet.monadexplorer.com/tx/${txHash}`
+}
+
+async function ensureMonadTestnet(ethereum: EthereumProvider): Promise<void> {
+  const currentChainId = await ethereum.request({ method: 'eth_chainId' }) as string
+  if (currentChainId?.toLowerCase() === MONAD_CHAIN_ID_HEX) return
+
+  try {
+    await ethereum.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: MONAD_CHAIN_ID_HEX }],
+    })
+    return
+  } catch (switchErr) {
+    const err = switchErr as { code?: number }
+    if (err.code !== 4902) {
+      throw new Error('Please switch MetaMask to Monad Testnet (chainId 10143)')
+    }
+  }
+
+  await ethereum.request({
+    method: 'wallet_addEthereumChain',
+    params: [{
+      chainId: MONAD_CHAIN_ID_HEX,
+      chainName: 'Monad Testnet',
+      nativeCurrency: {
+        name: 'MON',
+        symbol: 'MON',
+        decimals: 18,
+      },
+      rpcUrls: ['https://testnet-rpc.monad.xyz'],
+      blockExplorerUrls: ['https://testnet.monadexplorer.com'],
+    }],
+  })
 }
 
 function fmtAmount(amount: number, token: string, prefixDollar = false): string {
@@ -163,6 +199,7 @@ export default function PayInvoice() {
   const [depositAddress, setDepositAddress] = useState<string | null>(null)
   const [depositWallet, setDepositWallet] = useState<MockWalletIdentity | null>(null)
   const [rejectReasonInput, setRejectReasonInput] = useState('')
+  const [showRejectReasonInput, setShowRejectReasonInput] = useState(false)
 
   const ethereum = useMemo(() => {
     if (typeof window === 'undefined') return null
@@ -432,6 +469,7 @@ export default function PayInvoice() {
     try {
       setError(null)
       const accounts = await ethereum.request({ method: 'eth_requestAccounts' }) as string[]
+      await ensureMonadTestnet(ethereum)
       setPayerAddress(accounts?.[0] ?? null)
     } catch (err) {
       setError(normalizeError(err))
@@ -446,6 +484,7 @@ export default function PayInvoice() {
     setStatusText('Processing transaction...')
 
     try {
+      await ensureMonadTestnet(ethereum)
       const startRes = await fetch(`/api/contracts/${id}/pay/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -562,6 +601,7 @@ export default function PayInvoice() {
       const updatedInvoice = normalizeInvoiceRecord(updatedRaw)
       setInvoice(updatedInvoice)
       setRejectReasonInput(updatedInvoice.rejectionReason ?? rejectionReason)
+      setShowRejectReasonInput(false)
       setStatusText(null)
     } catch (err) {
       setStatusText(null)
@@ -843,25 +883,52 @@ export default function PayInvoice() {
           {isPayable && (
             <div className="space-y-2 rounded-lg border border-nyx-danger/25 bg-[rgba(239,68,68,0.06)] p-3">
               <p className="text-[10px] uppercase tracking-widest text-nyx-danger">Refuse Contract</p>
-              <textarea
-                value={rejectReasonInput}
-                onChange={(event) => setRejectReasonInput(event.target.value)}
-                placeholder="Reason for refusal"
-                maxLength={500}
-                className="w-full rounded-lg border border-nyx-danger/40 bg-nyx-card px-3 py-2 text-sm text-nyx-text placeholder:text-nyx-muted outline-none focus:border-nyx-danger min-h-[88px]"
-                disabled={interactionLocked}
-              />
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-[11px] text-nyx-muted">{rejectReasonInput.trim().length}/500</p>
+              {!showRejectReasonInput ? (
                 <button
                   type="button"
-                  onClick={handleRejectContract}
-                  disabled={interactionLocked || rejectReasonInput.trim().length === 0}
+                  onClick={() => setShowRejectReasonInput(true)}
+                  disabled={interactionLocked}
                   className="btn-secondary border-nyx-danger/40 text-nyx-danger hover:bg-[rgba(239,68,68,0.12)] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Refuse with reason
+                  Refuse
                 </button>
-              </div>
+              ) : (
+                <>
+                  <textarea
+                    value={rejectReasonInput}
+                    onChange={(event) => setRejectReasonInput(event.target.value)}
+                    placeholder="Reason for refusal"
+                    maxLength={500}
+                    className="w-full rounded-lg border border-nyx-danger/40 bg-nyx-card px-3 py-2 text-sm text-nyx-text placeholder:text-nyx-muted outline-none focus:border-nyx-danger min-h-[88px]"
+                    disabled={interactionLocked}
+                  />
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[11px] text-nyx-muted">{rejectReasonInput.trim().length}/500</p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowRejectReasonInput(false)
+                          setRejectReasonInput('')
+                          setError(null)
+                        }}
+                        disabled={interactionLocked}
+                        className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleRejectContract}
+                        disabled={interactionLocked || rejectReasonInput.trim().length === 0}
+                        className="btn-secondary border-nyx-danger/40 text-nyx-danger hover:bg-[rgba(239,68,68,0.12)] disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Confirm Refuse
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
