@@ -3,9 +3,14 @@ import { useParams } from 'react-router-dom'
 import { Check, Download, ExternalLink, Loader2 } from 'lucide-react'
 import { JsonRpcProvider, Wallet, parseUnits } from 'ethers'
 import type { Invoice } from '../../lib/invoices'
-import { normalizeInvoiceRecord } from '../../lib/invoices'
+import {
+  fmtPartyName,
+  formatDueDate,
+  formatIssueDate,
+  normalizeInvoiceRecord,
+} from '../../lib/invoices'
 import { buildPaymentReceiptPdf } from '../../lib/receiptPdf'
-import { downloadPdf, sha256Blob } from '../../lib/invoicePdf'
+import { buildInvoicePdf, downloadPdf, sha256Blob } from '../../lib/invoicePdf'
 import { getTokenByAddress, NATIVE_TOKEN_ADDRESS } from '../../lib/tokens'
 import FiatModal from '../../components/fiat/FiatModal'
 import type { MockWalletIdentity } from '../../lib/mockWallets'
@@ -43,6 +48,17 @@ function statusLabel(status: Invoice['status']): string {
   if (status === 'paid') return 'Paid'
   if (status === 'rejected') return 'Rejected'
   return 'Pending'
+}
+
+function formatDateTime(iso?: string): string {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 
 function formatUnits(value: bigint, decimals: number): string {
@@ -521,7 +537,14 @@ export default function PayInvoice() {
 
   const isPayable = invoice.status === 'sent'
   const canExecuteMetamaskPay = isPayable && !!payerAddress && !processing
+  const interactionLocked = processing || statusTone === 'success'
+  const methodSelectionLocked = interactionLocked || invoice.status === 'paid'
   const processingLabel = `Processing${['.', '..', '...'][processingDots]}`
+  const issueDate = formatIssueDate(invoice.createdAt)
+  const dueDate = formatDueDate(invoice.createdAt, invoice.dueDate)
+  const totalFromLines = invoice.lineItems.reduce((acc, item) => acc + item.amount, 0)
+  const payerName = fmtPartyName(invoice.payerInfo)
+  const issuerName = fmtPartyName(invoice.issuerInfo)
   const primaryButtonLabel = processing
     ? processingLabel
     : paymentMethod === 'metamask'
@@ -529,7 +552,7 @@ export default function PayInvoice() {
       : `Pay ${fmtAmount(invoice.amount, invoice.tokenSymbol)}`
 
   async function handlePrimaryPaymentAction() {
-    if (!isPayable || processing) return
+    if (!isPayable || interactionLocked) return
     if (paymentMethod === 'alchemy') {
       setFiatOpen(true)
       return
@@ -539,6 +562,30 @@ export default function PayInvoice() {
       return
     }
     await handlePay()
+  }
+
+  async function handleDownloadInvoice() {
+    const currentInvoice = invoice
+    if (!currentInvoice) return
+    try {
+      const doc = await buildInvoicePdf({
+        invoiceId: currentInvoice.invoiceId,
+        issueDate,
+        dueDate,
+        issuerAddress: currentInvoice.issuerAddress,
+        issuerInfo: currentInvoice.issuerInfo,
+        payerAddress: currentInvoice.payerAddress || 'Assigned at payment time',
+        payerInfo: currentInvoice.payerInfo,
+        lineItems: currentInvoice.lineItems,
+        tokenSymbol: currentInvoice.tokenSymbol,
+        status: currentInvoice.status,
+        payment: currentInvoice.payment,
+      })
+      const blob = doc.output('blob')
+      downloadPdf(blob, `NYX-Invoice-${currentInvoice.invoiceId}.pdf`)
+    } catch (err) {
+      setError(normalizeError(err))
+    }
   }
 
   const statusClass =
@@ -577,6 +624,61 @@ export default function PayInvoice() {
             <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Token Balance</p>
             <p className="text-nyx-text text-sm">{tokenBalanceText ?? 'Connect wallet to load'}</p>
           </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Issued</p>
+            <p className="text-nyx-text text-sm">{formatDateTime(invoice.createdAt)}</p>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Due Date</p>
+            <p className="text-nyx-text text-sm">{dueDate}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="rounded-lg border border-nyx-border bg-nyx-hover p-3">
+            <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Issuer</p>
+            <p className="text-sm text-nyx-text font-medium">{issuerName}</p>
+            {invoice.issuerInfo?.company && (
+              <p className="text-xs text-nyx-muted">{invoice.issuerInfo.company}</p>
+            )}
+            <p className="text-xs text-nyx-muted mt-1 break-all font-mono">{invoice.issuerAddress}</p>
+          </div>
+          <div className="rounded-lg border border-nyx-border bg-nyx-hover p-3">
+            <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Payer</p>
+            <p className="text-sm text-nyx-text font-medium">{payerName}</p>
+            {invoice.payerInfo?.company && (
+              <p className="text-xs text-nyx-muted">{invoice.payerInfo.company}</p>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-nyx-border bg-nyx-hover p-3 space-y-2">
+          <p className="text-[10px] uppercase tracking-widest text-nyx-muted">Service Breakdown</p>
+          <div className="space-y-2">
+            {invoice.lineItems.map((item, idx) => (
+              <div key={`${item.title}-${idx}`} className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm text-nyx-text font-medium">{item.title}</p>
+                  <p className="text-xs text-nyx-muted break-words">{item.description}</p>
+                </div>
+                <p className="text-sm text-nyx-text font-mono whitespace-nowrap">{fmtAmount(item.amount, invoice.tokenSymbol)}</p>
+              </div>
+            ))}
+          </div>
+          <div className="pt-2 border-t border-nyx-border flex items-center justify-between">
+            <p className="text-xs uppercase tracking-widest text-nyx-muted">Total</p>
+            <p className="text-sm text-nyx-text font-semibold">{fmtAmount(totalFromLines || invoice.amount, invoice.tokenSymbol)}</p>
+          </div>
+        </div>
+
+        <div>
+          <button
+            className="btn-secondary inline-flex w-max whitespace-nowrap"
+            onClick={handleDownloadInvoice}
+          >
+            <Download size={13} />
+            <span className="whitespace-nowrap">Download Invoice</span>
+          </button>
         </div>
 
         {invoice.status === 'rejected' && (
@@ -593,13 +695,18 @@ export default function PayInvoice() {
           <div className="space-y-2">
             <button
               type="button"
-              onClick={() => setPaymentMethod('metamask')}
+              onClick={() => {
+                if (methodSelectionLocked) return
+                setPaymentMethod('metamask')
+              }}
+              disabled={methodSelectionLocked}
               className={[
                 'w-full text-left rounded-xl border px-4 py-3 transition-colors',
                 'flex items-center justify-between gap-3',
                 paymentMethod === 'metamask'
                   ? 'border-nyx-accent bg-nyx-active'
                   : 'border-nyx-border bg-nyx-card hover:bg-nyx-hover',
+                methodSelectionLocked ? 'opacity-60 cursor-not-allowed' : '',
               ].join(' ')}
             >
               <div className="flex items-center gap-3 min-w-0">
@@ -623,13 +730,18 @@ export default function PayInvoice() {
 
             <button
               type="button"
-              onClick={() => setPaymentMethod('alchemy')}
+              onClick={() => {
+                if (methodSelectionLocked) return
+                setPaymentMethod('alchemy')
+              }}
+              disabled={methodSelectionLocked}
               className={[
                 'w-full text-left rounded-xl border px-4 py-3 transition-colors',
                 'flex items-center justify-between gap-3',
                 paymentMethod === 'alchemy'
                   ? 'border-nyx-accent bg-nyx-active'
                   : 'border-nyx-border bg-nyx-card hover:bg-nyx-hover',
+                methodSelectionLocked ? 'opacity-60 cursor-not-allowed' : '',
               ].join(' ')}
             >
               <div className="flex items-center gap-3 min-w-0">
@@ -656,7 +768,7 @@ export default function PayInvoice() {
             <button
               onClick={handlePrimaryPaymentAction}
               disabled={
-                processing ||
+                interactionLocked ||
                 !isPayable ||
                 (paymentMethod === 'metamask' && !!payerAddress && !canExecuteMetamaskPay)
               }

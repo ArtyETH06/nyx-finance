@@ -32,8 +32,8 @@ const empty: FormState = {
   payerLastName:   'Rivera',
   payerCompany:    'NYX Labs',
   lineItems:       [
-    { title: 'Smart Contract Development', description: 'Development of ERC-20 token contract and deployment on Monad testnet.', amount: '3.14' },
-    { title: 'Integration & QA', description: 'Wallet integration, payment flow checks, and final validation on testnet.', amount: '4.2' },
+    { title: 'Smart Contract Development', description: 'Development of ERC-20 token contract and deployment on Monad testnet.', amount: '0.0314' },
+    { title: 'Integration & QA', description: 'Wallet integration, payment flow checks, and final validation on testnet.', amount: '0.042' },
   ],
   tokenSymbol:     'MON',
 }
