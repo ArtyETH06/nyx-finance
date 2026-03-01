@@ -36,7 +36,7 @@ function resolveRpcUrl(): string {
   if (configured && configured.trim() && !configured.toLowerCase().includes('quicknode')) {
     return configured.trim()
   }
-  return 'https://testnet-rpc.monad.xyz'
+  return 'https://monad-testnet.g.alchemy.com/v2/lj2xftxNKQ7eSHtLRji-o'
 }
 
 function computeTokenAmount(params: { payAmount: number; currency: FiatCurrency; token: FiatToken }): number {

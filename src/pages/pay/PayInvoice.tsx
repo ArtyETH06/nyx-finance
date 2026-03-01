@@ -35,7 +35,7 @@ function resolveRpcUrl(): string {
   if (configured && configured.trim() && !configured.toLowerCase().includes('quicknode')) {
     return configured.trim()
   }
-  return 'https://testnet-rpc.monad.xyz'
+  return 'https://monad-testnet.g.alchemy.com/v2/lj2xftxNKQ7eSHtLRji-o'
 }
 
 function explorerUrl(txHash: string): string {
@@ -69,7 +69,7 @@ async function ensureMonadTestnet(ethereum: EthereumProvider): Promise<void> {
         symbol: 'MON',
         decimals: 18,
       },
-      rpcUrls: ['https://testnet-rpc.monad.xyz'],
+      rpcUrls: [resolveRpcUrl()],
       blockExplorerUrls: ['https://testnet.monadexplorer.com'],
     }],
   })

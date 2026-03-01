@@ -29,12 +29,27 @@ function canonicalTokenAddress(address: string): string {
   return isNativeAddress(address) ? NATIVE_TOKEN_ADDRESS : address
 }
 
+function resolveRpcUrl(): string {
+  const configured = (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_MONAD_RPC_URL
+  if (configured && configured.trim() && !configured.toLowerCase().includes('quicknode')) {
+    return configured.trim()
+  }
+  return 'https://monad-testnet.g.alchemy.com/v2/lj2xftxNKQ7eSHtLRji-o'
+}
+
 type EthereumProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
 }
 
+type WithdrawRelayResult = { txHash?: string; relayId?: string }
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function isMaxInputsConstraintError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  return error.message.toLowerCase().includes('maxinputs constraint')
 }
 
 async function ensureMonadTestnet(ethereum: {
@@ -66,7 +81,7 @@ async function ensureMonadTestnet(ethereum: {
         symbol: 'MON',
         decimals: 18,
       },
-      rpcUrls: ['https://testnet-rpc.monad.xyz'],
+      rpcUrls: [resolveRpcUrl()],
       blockExplorerUrls: ['https://testnet.monadexplorer.com'],
     }],
   })
@@ -278,11 +293,37 @@ export default function Wallet() {
     setWithdrawPending(true)
     try {
       const amount = parseAmount(withdrawAmount, token.decimals)
-      const result = await withdraw([{ token: canonicalTokenAddress(token.address), amount, recipient: withdrawRecipient }]) as
-        | { txHash?: string; relayId?: string }
-        | undefined
+      const tokenAddress = canonicalTokenAddress(token.address)
+      const results: WithdrawRelayResult[] = []
+      const queue: bigint[] = [amount]
+
+      while (queue.length > 0) {
+        const nextAmount = queue.shift()!
+        try {
+          const result = await withdraw([{
+            token: tokenAddress,
+            amount: nextAmount,
+            recipient: withdrawRecipient,
+          }]) as WithdrawRelayResult | undefined
+          results.push(result ?? {})
+        } catch (err) {
+          if (!isMaxInputsConstraintError(err)) throw err
+          if (nextAmount <= 1n || queue.length + results.length >= 8) {
+            throw new Error('Withdraw amount is too fragmented for one action. Try a smaller amount (for example Half first).')
+          }
+          const firstHalf = nextAmount / 2n
+          const secondHalf = nextAmount - firstHalf
+          if (firstHalf <= 0n || secondHalf <= 0n) {
+            throw new Error('Withdraw amount cannot be split further. Try a smaller amount.')
+          }
+          queue.unshift(secondHalf)
+          queue.unshift(firstHalf)
+        }
+      }
+
       setWithdrawAmount('')
-      await refreshAllBalances(token)
+      await refreshPrivateBalancesWithRetries(token, 5)
+      const result = results[results.length - 1]
       const relayId = result?.relayId
       let txHash = result?.txHash
       if (!txHash && relayId) {
@@ -294,8 +335,9 @@ export default function Wallet() {
         }
       }
       const relayText = relayId ? ` | Relay ID: ${relayId}` : ''
+      const splitText = results.length > 1 ? ` | split into ${results.length} withdrawals` : ''
       toast.show(
-        `Withdrew ${withdrawAmount} ${token.symbol} to ${shortenAddress(withdrawRecipient)}${relayText}`,
+        `Withdrew ${withdrawAmount} ${token.symbol} to ${shortenAddress(withdrawRecipient)}${relayText}${splitText}`,
         'success',
         txHash ? `${EXPLORER}/${txHash}` : undefined,
       )
