@@ -171,6 +171,13 @@ export default function Wallet() {
     if (ready && (!walletExists || !activeAccount)) navigate('/')
   }, [ready, walletExists, activeAccount, navigate])
 
+  // Auto-recover from stale IndexedDB leaf cache (common in prod after protocol upgrades)
+  useEffect(() => {
+    if (syncError && syncError.includes('inconsistent') && !busy) {
+      forceResync()
+    }
+  }, [syncError, busy, forceResync])
+
   // Auto-select first withdraw token that has a private balance
   useEffect(() => {
     if (!balances || withdrawToken) return
