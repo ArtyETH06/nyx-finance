@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUnlink, useUnlinkBalances, parseAmount } from '@unlink-xyz/react'
 import {
@@ -166,9 +166,13 @@ export default function Wallet() {
 
   const address = activeAccount?.address ?? ''
 
-  // Track which pending deposits we've locally dismissed (balance confirmed but SDK status stuck)
+  // Locally dismissed pending deposits: the SDK status stays stuck at 'pending' when auto-sync
+  // is broken, so we dismiss by relayId the moment on-chain confirmation lands.
   const [dismissedTxIds, setDismissedTxIds] = useState<Set<string>>(new Set())
-  const prevBalancesRef = useRef<Record<string, bigint>>({})
+
+  function dismissPending(relayId: string) {
+    setDismissedTxIds(s => { const n = new Set(s); n.add(relayId); return n })
+  }
 
   // Guard
   useEffect(() => {
@@ -181,28 +185,6 @@ export default function Wallet() {
       forceResync()
     }
   }, [syncError, busy, forceResync])
-
-  // When a balance increases for a token that has a 'pending' deposit, dismiss it locally.
-  // The SDK status stays stuck at 'pending' even after confirmation, so we derive it from balance.
-  useEffect(() => {
-    if (!balances) return
-    const curr: Record<string, bigint> = Object.fromEntries(
-      Object.entries(balances).map(([k, v]) => [k.toLowerCase(), v])
-    )
-    const prev = prevBalancesRef.current
-    const toAdd: string[] = []
-    for (const pd of pendingDeposits) {
-      if (pd.status !== 'pending') continue
-      const key = isNativeAddress(pd.token) ? NATIVE_TOKEN_ADDRESS.toLowerCase() : pd.token.toLowerCase()
-      if ((curr[key] ?? 0n) > (prev[key] ?? 0n)) {
-        toAdd.push(pd.txId)
-      }
-    }
-    if (toAdd.length > 0) {
-      setDismissedTxIds(s => { const n = new Set(s); toAdd.forEach(id => n.add(id)); return n })
-    }
-    prevBalancesRef.current = curr
-  }, [balances, pendingDeposits])
 
   // Auto-select first withdraw token that has a private balance
   useEffect(() => {
@@ -282,7 +264,7 @@ export default function Wallet() {
     try {
       const amount = parseAmount(depositAmount, token.decimals)
       const result = await deposit([{ token: token.address, amount, depositor: publicAddress }]) as
-        | { to: string; calldata: string; value?: string | bigint }
+        | { relayId?: string; to: string; calldata: string; value?: string | bigint }
         | undefined
       if (!result) throw new Error('No deposit result returned')
       if (!window.ethereum) throw new Error('No wallet provider found')
@@ -305,6 +287,8 @@ export default function Wallet() {
       }) as string
 
       await waitForOnchainConfirmation(window.ethereum, txHash)
+      // Dismiss the pending deposit immediately — don't wait for broken auto-sync to update status
+      if (result.relayId) dismissPending(result.relayId)
       setDepositAmount('')
       await refreshPrivateBalancesWithRetries(token)
       toast.show(
