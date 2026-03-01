@@ -29,6 +29,14 @@ function canonicalTokenAddress(address: string): string {
   return isNativeAddress(address) ? NATIVE_TOKEN_ADDRESS : address
 }
 
+type EthereumProvider = {
+  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 async function ensureMonadTestnet(ethereum: {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
 }): Promise<void> {
@@ -62,6 +70,26 @@ async function ensureMonadTestnet(ethereum: {
       blockExplorerUrls: ['https://testnet.monadexplorer.com'],
     }],
   })
+}
+
+async function waitForOnchainConfirmation(
+  ethereum: EthereumProvider,
+  txHash: string,
+  timeoutMs = 180000
+): Promise<void> {
+  const startedAt = Date.now()
+  while (Date.now() - startedAt <= timeoutMs) {
+    const receipt = await ethereum.request({
+      method: 'eth_getTransactionReceipt',
+      params: [txHash],
+    }) as { status?: string } | null
+    if (receipt) {
+      if (receipt.status === '0x1') return
+      throw new Error('Deposit transaction failed on-chain')
+    }
+    await sleep(2000)
+  }
+  throw new Error('Timed out waiting for deposit confirmation')
 }
 
 function SectionHeader({ icon: Icon, title }: { icon: React.ElementType; title: string }) {
@@ -191,6 +219,13 @@ export default function Wallet() {
     }
   }
 
+  async function refreshPrivateBalancesWithRetries(token: Token, attempts = 8): Promise<void> {
+    for (let i = 0; i < attempts; i++) {
+      await refreshAllBalances(token)
+      if (i < attempts - 1) await sleep(2500)
+    }
+  }
+
   async function handleDeposit() {
     if (!publicAddress || !depositAmount) return
     const token = getTokenByAddress(depositToken)
@@ -219,9 +254,11 @@ export default function Wallet() {
       const txHash: string = await window.ethereum.request({
         method: 'eth_sendTransaction',
         params: [txParams],
-      })
+      }) as string
+
+      await waitForOnchainConfirmation(window.ethereum, txHash)
       setDepositAmount('')
-      await refreshAllBalances(token)
+      await refreshPrivateBalancesWithRetries(token)
       toast.show(
         `Deposited ${depositAmount} ${token.symbol} from ${shortenAddress(publicAddress)}`,
         'success',
