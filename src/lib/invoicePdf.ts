@@ -48,6 +48,11 @@ function fmtTokenSymbol(symbol: string): string {
   return trimmed.startsWith('$') ? trimmed : `$${trimmed}`
 }
 
+function fmtLineMeta(item: InvoiceLineItem, tokenSymbol: string): string | null {
+  if (!item.quantity || !item.unitPrice) return null
+  return `${item.quantity} x ${fmtAmount(item.unitPrice)} ${tokenSymbol}`
+}
+
 function fullName(info?: InvoicePartyInfo): string {
   const name = [info?.firstName, info?.lastName].filter(Boolean).join(' ').trim()
   return name || '—'
@@ -68,6 +73,13 @@ function statusBadgeMeta(status: ReturnType<typeof statusForPdf>) {
 async function getLogoDataUrl(): Promise<string | null> {
   if (cachedLogoDataUrlPromise) return cachedLogoDataUrlPromise
   cachedLogoDataUrlPromise = new Promise((resolve) => {
+    let settled = false
+    const settle = (value: string | null) => {
+      if (settled) return
+      settled = true
+      resolve(value)
+    }
+    const timeout = window.setTimeout(() => settle(null), 2000)
     const img = new Image()
     img.onload = () => {
       try {
@@ -76,16 +88,22 @@ async function getLogoDataUrl(): Promise<string | null> {
         canvas.height = img.naturalHeight
         const ctx = canvas.getContext('2d')
         if (!ctx) {
-          resolve(null)
+          window.clearTimeout(timeout)
+          settle(null)
           return
         }
         ctx.drawImage(img, 0, 0)
-        resolve(canvas.toDataURL('image/png'))
+        window.clearTimeout(timeout)
+        settle(canvas.toDataURL('image/png'))
       } catch {
-        resolve(null)
+        window.clearTimeout(timeout)
+        settle(null)
       }
     }
-    img.onerror = () => resolve(null)
+    img.onerror = () => {
+      window.clearTimeout(timeout)
+      settle(null)
+    }
     img.src = nyxLogo
   })
   return cachedLogoDataUrlPromise
@@ -270,8 +288,15 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<jsPDF> {
   doc.setLineWidth(0.6)
 
   for (const item of input.lineItems) {
-    const titleLines = doc.splitTextToSize(item.title || 'Service', colService - 16)
-    const descriptionLines = doc.splitTextToSize(item.description || '—', colDescription - 16)
+    const serviceTitle = item.quantity && item.quantity > 1
+      ? `${item.title || 'Service'} (x${item.quantity})`
+      : (item.title || 'Service')
+    const lineMeta = fmtLineMeta(item, tokenSymbol)
+    const serviceDescription = lineMeta
+      ? `${lineMeta}${item.description ? ` | ${item.description}` : ''}`
+      : (item.description || '—')
+    const titleLines = doc.splitTextToSize(serviceTitle, colService - 16)
+    const descriptionLines = doc.splitTextToSize(serviceDescription, colDescription - 16)
     const amountText = `${fmtAmount(item.amount)} ${tokenSymbol}`
 
     const lines = Math.max(titleLines.length, descriptionLines.length, 1)

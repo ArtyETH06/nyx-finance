@@ -20,16 +20,23 @@ function parseLineItems(value: unknown): InvoiceDoc['lineItems'] {
   return value
     .map((item) => {
       const raw = item as Record<string, unknown>
-      const amount = parseAmount(raw.amount)
+      const rawAmount = parseAmount(raw.amount)
       const quantity = raw.quantity == null ? undefined : parseAmount(raw.quantity)
       const unitPrice = raw.unitPrice == null ? undefined : parseAmount(raw.unitPrice)
+      const normalizedQuantity = quantity != null && quantity > 0 ? quantity : undefined
+      const normalizedUnitPrice = unitPrice != null && unitPrice > 0
+        ? unitPrice
+        : (rawAmount != null && rawAmount > 0 && normalizedQuantity ? rawAmount / normalizedQuantity : undefined)
+      const amount = rawAmount != null && rawAmount > 0
+        ? rawAmount
+        : (normalizedQuantity && normalizedUnitPrice ? normalizedQuantity * normalizedUnitPrice : null)
       if (!raw.title || typeof raw.title !== 'string' || amount == null || amount <= 0) return null
       return {
         title: raw.title.trim(),
         description: typeof raw.description === 'string' ? raw.description.trim() : '',
         amount,
-        quantity: quantity == null ? undefined : quantity,
-        unitPrice: unitPrice == null ? undefined : unitPrice,
+        quantity: normalizedQuantity,
+        unitPrice: normalizedUnitPrice,
       }
     })
     .filter((item): item is NonNullable<typeof item> => item !== null)

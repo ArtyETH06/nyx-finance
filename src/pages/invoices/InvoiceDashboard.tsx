@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useUnlink } from '@unlink-xyz/react'
 import { useNavigate } from 'react-router-dom'
-import { FilePlus, ArrowUpRight, ArrowDownLeft, RefreshCw, Loader2, Link2 } from 'lucide-react'
+import { FilePlus, ArrowUpRight, ArrowDownLeft, RefreshCw, Loader2 } from 'lucide-react'
 import type { Invoice } from '../../lib/invoices'
 import {
   applyInvoiceLocalOverride,
@@ -12,10 +12,10 @@ import {
 } from '../../lib/invoices'
 
 const STATUS_STYLES: Record<Invoice['status'], string> = {
-  sent: 'bg-[#FEF3C7] text-[#92400E]',
-  accepted: 'bg-[#FEF3C7] text-[#92400E]',
-  rejected: 'bg-[#FEE2E2] text-[#991B1B]',
-  paid: 'bg-[#DCFCE7] text-[#166534]',
+  sent: 'bg-[#FDE68A] text-[#78350F]',
+  accepted: 'bg-[#FDE68A] text-[#78350F]',
+  rejected: 'bg-[#F87171] text-[#7F1D1D]',
+  paid: 'bg-[#22C55E] text-[#052E16]',
 }
 
 const STATUS_LABELS: Record<Invoice['status'], string> = {
@@ -31,22 +31,6 @@ function formatAmount(amount: number, symbol: string) {
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
-function shortHash(hash: string) {
-  if (hash.length < 16) return hash
-  return `${hash.slice(0, 10)}…${hash.slice(-8)}`
-}
-
-function paymentPath(inv: Invoice): string {
-  const payId = inv.invoiceId || inv._id
-  return `/pay/${encodeURIComponent(payId)}`
-}
-
-function paymentUrl(inv: Invoice): string {
-  const path = paymentPath(inv)
-  if (typeof window === 'undefined') return path
-  return `${window.location.origin}${path}`
 }
 
 function counterpartyLabel(inv: Invoice, address: string) {
@@ -66,7 +50,6 @@ export default function InvoiceDashboard() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [copiedId, setCopiedId] = useState<string | null>(null)
   const [loadingDots, setLoadingDots] = useState(1)
 
   const address = activeAccount?.address ?? ''
@@ -110,7 +93,7 @@ export default function InvoiceDashboard() {
   }, [loading])
 
   return (
-    <main className="px-8 py-10 max-w-4xl">
+    <main className="px-8 py-10 max-w-4xl mx-auto w-full md:-translate-x-16">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-semibold text-nyx-text tracking-tight">Invoices</h1>
@@ -195,68 +178,24 @@ export default function InvoiceDashboard() {
                   <p className="text-nyx-muted text-xs mt-0.5 truncate">
                     {isSent ? 'To: ' : 'From: '}{counterpartyLabel(inv, address)}
                   </p>
-                  {isSent && (
-                    <div className="mt-1.5 flex items-center gap-2 min-w-0">
-                      <a
-                        href={paymentPath(inv)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="text-[11px] text-nyx-accent underline truncate"
-                      >
-                        {paymentUrl(inv)}
-                      </a>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          const value = paymentUrl(inv)
-                          navigator.clipboard.writeText(value).then(() => {
-                            const key = inv._id || inv.invoiceId
-                            setCopiedId(key)
-                            window.setTimeout(() => setCopiedId((prev) => (prev === key ? null : prev)), 1500)
-                          }).catch(() => {})
-                        }}
-                        className="text-[11px] text-nyx-muted hover:text-nyx-text inline-flex items-center gap-1"
-                        aria-label="Copy pay link"
-                      >
-                        <Link2 size={12} />
-                        {copiedId === (inv._id || inv.invoiceId) ? 'Copied' : 'Copy'}
-                      </button>
-                    </div>
-                  )}
-                  {inv.status === 'paid' && (inv.payment?.txHash || inv.payment?.relayId) && (
-                    <p className="text-nyx-success text-[11px] mt-1 truncate">
-                      Proof:{' '}
-                      {inv.payment?.txHash ? (
-                        <a
-                          href={`https://testnet.monadexplorer.com/tx/${inv.payment.txHash}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="underline"
-                        >
-                          {shortHash(inv.payment.txHash)}
-                        </a>
-                      ) : (
-                        <span className="font-mono">{shortHash(inv.payment!.relayId!)}</span>
-                      )}
-                    </p>
-                  )}
                 </div>
 
-                {/* Date */}
-                <p className="text-nyx-muted text-xs flex-shrink-0 hidden sm:block">
-                  {formatDate(inv.createdAt)}
-                </p>
+                <div className="flex items-center justify-end gap-3 flex-shrink-0 min-w-[220px] sm:min-w-[290px]">
+                  {/* Date */}
+                  <p className="text-nyx-muted text-xs tabular-nums w-[88px] text-right hidden sm:block">
+                    {formatDate(inv.createdAt)}
+                  </p>
 
-                {/* Status badge */}
-                <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-1 rounded-md flex-shrink-0 ${STATUS_STYLES[inv.status]}`}>
-                  {STATUS_LABELS[inv.status]}
-                </span>
+                  {/* Status badge */}
+                  <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-1 rounded-md inline-flex items-center justify-center w-[74px] flex-shrink-0 ${STATUS_STYLES[inv.status]}`}>
+                    {STATUS_LABELS[inv.status]}
+                  </span>
 
-                {/* Amount */}
-                <p className="text-nyx-text text-sm font-semibold flex-shrink-0 tabular-nums">
-                  {formatAmount(inv.amount, inv.tokenSymbol ?? inv.currencySymbol ?? 'TOKEN')}
-                </p>
+                  {/* Amount */}
+                  <p className="text-nyx-text text-sm font-semibold tabular-nums w-[110px] text-right flex-shrink-0">
+                    {formatAmount(inv.amount, inv.tokenSymbol ?? inv.currencySymbol ?? 'TOKEN')}
+                  </p>
+                </div>
               </button>
             )
           })}

@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUnlink } from '@unlink-xyz/react'
+import { jsPDF } from 'jspdf'
 import { loadProfile } from '../../lib/profile'
 import { toast } from '../../lib/toast'
 import { buildInvoicePdf, sha256Blob } from '../../lib/invoicePdf'
@@ -10,6 +11,7 @@ import { INVOICE_TOKEN_OPTIONS, getInvoiceTokenBySymbol, type InvoiceTokenSymbol
 interface LineItemForm {
   title: string
   description: string
+  quantity: string
   amount: string
 }
 
@@ -34,8 +36,8 @@ const empty: FormState = {
   payerLastName:   'Whipe',
   payerCompany:    'NYX Labs',
   lineItems:       [
-    { title: 'Smart Contract Development', description: 'Development of ERC-20 token contract and deployment on Monad testnet.', amount: '0.0314' },
-    { title: 'Integration & QA', description: 'Wallet integration, payment flow checks, and final validation on testnet.', amount: '0.042' },
+    { title: 'Smart Contract Development', description: 'Development of ERC-20 token contract and deployment on Monad testnet.', quantity: '1', amount: '0.0314' },
+    { title: 'Integration & QA', description: 'Wallet integration, payment flow checks, and final validation on testnet.', quantity: '1', amount: '0.042' },
   ],
   tokenSymbol:     'MON',
 }
@@ -71,14 +73,79 @@ function Field({
 const inputCls =
   'nyx-input'
 
+async function buildLivePreviewPdf(params: {
+  invoiceId: string
+  title: string
+  issuer: string
+  customer: string
+  token: string
+  lines: Array<{ title: string; quantity: number; unitPrice: number; total: number }>
+  total: number
+}) {
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' })
+  const left = 44
+  const right = doc.internal.pageSize.getWidth() - 44
+  let y = 52
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(18)
+  doc.text('NYX INVOICE PREVIEW', left, y)
+  y += 24
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(10)
+  doc.text(`Invoice ID: ${params.invoiceId}`, left, y)
+  y += 14
+  doc.text(`Title: ${params.title}`, left, y)
+  y += 14
+  doc.text(`Issuer: ${params.issuer}`, left, y)
+  y += 14
+  doc.text(`Customer: ${params.customer}`, left, y)
+  y += 22
+
+  doc.setDrawColor(220, 224, 230)
+  doc.line(left, y, right, y)
+  y += 14
+  doc.setFont('helvetica', 'bold')
+  doc.text('Service', left, y)
+  doc.text('Qty', right - 180, y)
+  doc.text(`Unit (${params.token})`, right - 120, y)
+  doc.text(`Total (${params.token})`, right, y, { align: 'right' })
+  y += 8
+  doc.line(left, y, right, y)
+  y += 14
+
+  doc.setFont('helvetica', 'normal')
+  for (const line of params.lines) {
+    doc.text(line.title, left, y)
+    doc.text(String(line.quantity), right - 180, y)
+    doc.text(line.unitPrice.toFixed(2), right - 120, y)
+    doc.text(line.total.toFixed(2), right, y, { align: 'right' })
+    y += 16
+    if (y > 760) break
+  }
+
+  y += 8
+  doc.line(left, y, right, y)
+  y += 16
+  doc.setFont('helvetica', 'bold')
+  doc.text('TOTAL', left, y)
+  doc.text(`${params.total.toFixed(2)} ${params.token}`, right, y, { align: 'right' })
+
+  return doc.output('blob')
+}
+
 export default function CreateInvoice() {
   const { activeAccount } = useUnlink()
   const navigate = useNavigate()
   const [form, setForm] = useState<FormState>(empty)
   const [submitting, setSubmitting] = useState(false)
-  const [copiedAddress, setCopiedAddress] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [submittingDots, setSubmittingDots] = useState(1)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [previewBusy, setPreviewBusy] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+  const previewInvoiceIdRef = useRef(makeInvoiceId(new Date()))
 
   // Pre-fill issuer from saved profile
   useEffect(() => {
@@ -117,7 +184,7 @@ export default function CreateInvoice() {
   function addLineItem() {
     setForm((prev) => ({
       ...prev,
-      lineItems: [...prev.lineItems, { title: '', description: '', amount: '' }],
+      lineItems: [...prev.lineItems, { title: '', description: '', quantity: '1', amount: '' }],
     }))
   }
 
@@ -127,14 +194,6 @@ export default function CreateInvoice() {
       const next = prev.lineItems.filter((_, i) => i !== index)
       return { ...prev, lineItems: next }
     })
-  }
-
-  async function handleCopyAddress() {
-    const address = activeAccount?.address
-    if (!address) return
-    await navigator.clipboard.writeText(address)
-    setCopiedAddress(true)
-    window.setTimeout(() => setCopiedAddress(false), 1500)
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -151,9 +210,23 @@ export default function CreateInvoice() {
       .map((item) => ({
         title: item.title.trim(),
         description: item.description.trim(),
-        amount: Number(item.amount),
+        quantity: Number(item.quantity || '1'),
+        unitPrice: Number(item.amount),
       }))
-      .filter((item) => item.title && item.description && Number.isFinite(item.amount) && item.amount > 0)
+      .map((item) => ({
+        ...item,
+        amount: item.quantity * item.unitPrice,
+      }))
+      .filter((item) =>
+        item.title &&
+        item.description &&
+        Number.isFinite(item.quantity) &&
+        item.quantity > 0 &&
+        Number.isFinite(item.unitPrice) &&
+        item.unitPrice > 0 &&
+        Number.isFinite(item.amount) &&
+        item.amount > 0
+      )
 
     if (parsedLineItems.length === 0) {
       setFormError('Please add at least one valid service line item.')
@@ -253,156 +326,275 @@ export default function CreateInvoice() {
     }
   }
 
+  useEffect(() => {
+    let cancelled = false
+    let nextUrl: string | null = null
+    const timer = window.setTimeout(async () => {
+      setPreviewBusy(true)
+      setPreviewError(null)
+      try {
+        const selectedToken = getInvoiceTokenBySymbol(form.tokenSymbol)
+        const parsedLineItems = form.lineItems
+          .map((item) => ({
+            title: item.title.trim(),
+            description: item.description.trim(),
+            quantity: Number(item.quantity || '1'),
+            unitPrice: Number(item.amount),
+          }))
+          .map((item) => ({
+            ...item,
+            amount: item.quantity * item.unitPrice,
+          }))
+          .filter((item) =>
+            item.title &&
+            item.description &&
+            Number.isFinite(item.quantity) &&
+            item.quantity > 0 &&
+            Number.isFinite(item.unitPrice) &&
+            item.unitPrice > 0 &&
+            Number.isFinite(item.amount) &&
+            item.amount > 0
+          )
+
+        const previewLines = parsedLineItems.length > 0
+          ? parsedLineItems
+          : [{
+            title: 'Service',
+            description: 'Service description',
+            quantity: 1,
+            unitPrice: 0.01,
+            amount: 0.01,
+          }]
+
+        const issuerName = [form.issuerFirstName, form.issuerLastName].filter(Boolean).join(' ').trim() || 'Issuer'
+        const customerName = [form.payerFirstName, form.payerLastName].filter(Boolean).join(' ').trim() || 'Customer'
+        const total = previewLines.reduce((acc, item) => acc + item.amount, 0)
+        const blob = await buildLivePreviewPdf({
+          invoiceId: previewInvoiceIdRef.current,
+          title: form.invoiceTitle.trim() || 'Invoice',
+          issuer: issuerName,
+          customer: customerName,
+          token: selectedToken.symbol,
+          lines: previewLines.map((item) => ({
+            title: item.title,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            total: item.amount,
+          })),
+          total,
+        })
+        nextUrl = URL.createObjectURL(blob)
+        if (!cancelled) {
+          setPreviewUrl((prev) => {
+            if (prev) URL.revokeObjectURL(prev)
+            return nextUrl
+          })
+          nextUrl = null
+        }
+      } catch {
+        if (!cancelled) {
+          setPreviewUrl(null)
+          setPreviewError('Unable to render preview')
+        }
+      } finally {
+        if (!cancelled) setPreviewBusy(false)
+      }
+    }, 280)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+      if (nextUrl) URL.revokeObjectURL(nextUrl)
+    }
+  }, [form, activeAccount?.address])
+
+  useEffect(() => {
+    return () => {
+      setPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev)
+        return null
+      })
+    }
+  }, [])
+
   return (
-    <main className="px-8 py-10 max-w-2xl">
+    <main className="px-8 py-10 w-full max-w-none">
       <h1 className="text-2xl font-semibold text-nyx-text tracking-tight mb-8">Create Invoice</h1>
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(680px,1fr)_420px] gap-6 items-start">
+        <form onSubmit={handleSubmit} className="space-y-8 max-w-2xl">
 
-      <form onSubmit={handleSubmit} className="space-y-8">
-
-        {/* Issuer */}
-        <div className="nyx-card p-6">
-          <SectionLabel>Issuer</SectionLabel>
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <Field label="First Name">
-              <input className={inputCls} value={form.issuerFirstName} onChange={set('issuerFirstName')} placeholder="Jane" />
-            </Field>
-            <Field label="Last Name">
-              <input className={inputCls} value={form.issuerLastName} onChange={set('issuerLastName')} placeholder="Doe" />
+          {/* Issuer */}
+          <div className="nyx-card p-6">
+            <SectionLabel>Issuer</SectionLabel>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <Field label="First Name">
+                <input className={inputCls} value={form.issuerFirstName} onChange={set('issuerFirstName')} placeholder="Jane" />
+              </Field>
+              <Field label="Last Name">
+                <input className={inputCls} value={form.issuerLastName} onChange={set('issuerLastName')} placeholder="Doe" />
+              </Field>
+            </div>
+            <Field label="Company">
+              <input className={inputCls} value={form.issuerCompany} onChange={set('issuerCompany')} placeholder="Acme Corp" />
             </Field>
           </div>
-          <Field label="Company">
-            <input className={inputCls} value={form.issuerCompany} onChange={set('issuerCompany')} placeholder="Acme Corp" />
-          </Field>
-          <div className="mt-4 pt-4 border-t border-nyx-border">
-            <p className="text-[10px] font-semibold tracking-widest text-nyx-muted uppercase mb-2">Your Unlink Address</p>
-            <div
-              className="relative group cursor-pointer inline-block w-full"
-              onClick={handleCopyAddress}
-            >
-              <p className={`font-mono text-sm break-all transition-colors duration-150 select-none ${
-                copiedAddress ? 'text-nyx-success' : 'text-nyx-text group-hover:text-nyx-accent'
-              }`}>
-                {copiedAddress ? 'Copied!' : (activeAccount?.address ?? 'Wallet not ready')}
-              </p>
-              {!copiedAddress && (
-                <span className="absolute -top-7 left-0 text-[10px] text-nyx-muted bg-nyx-secondary border border-nyx-border px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-150 whitespace-nowrap pointer-events-none z-10">
-                  Click to copy
-                </span>
+
+          {/* Customer */}
+          <div className="nyx-card p-6">
+            <SectionLabel>Customer</SectionLabel>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <Field label="First Name">
+                <input className={inputCls} value={form.payerFirstName} onChange={set('payerFirstName')} placeholder="John" />
+              </Field>
+              <Field label="Last Name">
+                <input className={inputCls} value={form.payerLastName} onChange={set('payerLastName')} placeholder="Smith" />
+              </Field>
+            </div>
+            <Field label="Company">
+              <input className={inputCls} value={form.payerCompany} onChange={set('payerCompany')} placeholder="Client Corp" />
+            </Field>
+          </div>
+
+          {/* Invoice Details */}
+          <div className="nyx-card p-6">
+            <SectionLabel>Invoice Details</SectionLabel>
+            <div className="space-y-4">
+              <Field label="Invoice Title" required>
+                <input
+                  className={inputCls}
+                  value={form.invoiceTitle}
+                  onChange={set('invoiceTitle')}
+                  placeholder="Service Agreement — Q1 2026"
+                  required
+                />
+              </Field>
+              {form.lineItems.map((item, index) => (
+                <div key={index} className="rounded-lg border border-nyx-border p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs uppercase tracking-widest text-nyx-muted">Service {index + 1}</p>
+                    {form.lineItems.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeLineItem(index)}
+                        className="text-xs text-nyx-danger hover:opacity-85"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  <Field label="Title" required>
+                    <input
+                      className={inputCls}
+                      value={item.title}
+                      onChange={(e) => setLineItem(index, 'title', e.target.value)}
+                      placeholder="Service title"
+                      required
+                    />
+                  </Field>
+                  <Field label="Description" required>
+                    <textarea
+                      className={`${inputCls} resize-none`}
+                      rows={2}
+                      value={item.description}
+                      onChange={(e) => setLineItem(index, 'description', e.target.value)}
+                      placeholder="Describe this service line"
+                      required
+                    />
+                  </Field>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Quantity" required>
+                      <input
+                        className={inputCls}
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={item.quantity}
+                        onChange={(e) => setLineItem(index, 'quantity', e.target.value)}
+                        placeholder="1"
+                        required
+                      />
+                    </Field>
+                    <Field label="Unit Price" required>
+                      <input
+                        className={inputCls}
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={item.amount}
+                        onChange={(e) => setLineItem(index, 'amount', e.target.value)}
+                        placeholder="0.00"
+                        required
+                      />
+                    </Field>
+                  </div>
+                  <p className="text-[11px] text-nyx-muted font-mono">
+                    Line Total:{' '}
+                    {(() => {
+                      const quantity = Number(item.quantity || '0')
+                      const unitPrice = Number(item.amount || '0')
+                      const total = Number.isFinite(quantity) && Number.isFinite(unitPrice) ? quantity * unitPrice : 0
+                      return total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                    })()} {form.tokenSymbol}
+                  </p>
+                </div>
+              ))}
+
+              <button type="button" onClick={addLineItem} className="btn-secondary">
+                Add Service Line
+              </button>
+
+              <Field label="Token" required>
+                <select
+                  className="nyx-input text-nyx-muted text-sm font-mono"
+                  value={form.tokenSymbol}
+                  onChange={(e) => setForm((f) => ({ ...f, tokenSymbol: e.target.value as FormState['tokenSymbol'] }))}
+                >
+                  {INVOICE_TOKEN_OPTIONS.map((opt) => (
+                    <option key={opt.symbol} value={opt.symbol} style={{ backgroundColor: '#0E1428' }}>
+                      {opt.symbol}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+          </div>
+
+          {formError && (
+            <p className="text-nyx-danger text-sm">{formError}</p>
+          )}
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="btn-primary"
+          >
+            {submitting ? `Creating Invoice${'.'.repeat(submittingDots)}` : 'Create Invoice'}
+          </button>
+
+        </form>
+
+        <aside className="xl:sticky xl:top-6">
+          <div className="nyx-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-nyx-border flex items-center justify-between">
+              <p className="text-[10px] uppercase tracking-widest text-nyx-muted">Live PDF Preview</p>
+              {previewBusy && <p className="text-[11px] text-nyx-muted">Updating…</p>}
+            </div>
+            <div className="h-[760px] bg-[#eef2f7]">
+              {previewUrl ? (
+                <iframe
+                  title="Live invoice PDF preview"
+                  src={previewUrl}
+                  className="w-full h-full border-0"
+                />
+              ) : (
+                <div className="h-full flex items-center justify-center text-sm text-nyx-muted px-6 text-center">
+                  {previewError ?? 'Generating preview...'}
+                </div>
               )}
             </div>
           </div>
-        </div>
-
-        {/* Payer */}
-        <div className="nyx-card p-6">
-          <SectionLabel>Payer</SectionLabel>
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <Field label="First Name">
-              <input className={inputCls} value={form.payerFirstName} onChange={set('payerFirstName')} placeholder="John" />
-            </Field>
-            <Field label="Last Name">
-              <input className={inputCls} value={form.payerLastName} onChange={set('payerLastName')} placeholder="Smith" />
-            </Field>
-          </div>
-          <Field label="Company">
-            <input className={inputCls} value={form.payerCompany} onChange={set('payerCompany')} placeholder="Client Corp" />
-          </Field>
-        </div>
-
-        {/* Invoice Details */}
-        <div className="nyx-card p-6">
-          <SectionLabel>Invoice Details</SectionLabel>
-          <div className="space-y-4">
-            <Field label="Invoice Title" required>
-              <input
-                className={inputCls}
-                value={form.invoiceTitle}
-                onChange={set('invoiceTitle')}
-                placeholder="Service Agreement — Q1 2026"
-                required
-              />
-            </Field>
-            {form.lineItems.map((item, index) => (
-              <div key={index} className="rounded-lg border border-nyx-border p-3 space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs uppercase tracking-widest text-nyx-muted">Service {index + 1}</p>
-                  {form.lineItems.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeLineItem(index)}
-                      className="text-xs text-nyx-danger hover:opacity-85"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-                <Field label="Title" required>
-                  <input
-                    className={inputCls}
-                    value={item.title}
-                    onChange={(e) => setLineItem(index, 'title', e.target.value)}
-                    placeholder="Service title"
-                    required
-                  />
-                </Field>
-                <Field label="Description" required>
-                  <textarea
-                    className={`${inputCls} resize-none`}
-                    rows={2}
-                    value={item.description}
-                    onChange={(e) => setLineItem(index, 'description', e.target.value)}
-                    placeholder="Describe this service line"
-                    required
-                  />
-                </Field>
-                <Field label="Amount" required>
-                  <input
-                    className={inputCls}
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={item.amount}
-                    onChange={(e) => setLineItem(index, 'amount', e.target.value)}
-                    placeholder="0.00"
-                    required
-                  />
-                </Field>
-              </div>
-            ))}
-
-            <button type="button" onClick={addLineItem} className="btn-secondary">
-              Add Service Line
-            </button>
-
-            <Field label="Token" required>
-              <select
-                className="nyx-input text-nyx-muted text-sm font-mono"
-                value={form.tokenSymbol}
-                onChange={(e) => setForm((f) => ({ ...f, tokenSymbol: e.target.value as FormState['tokenSymbol'] }))}
-              >
-                {INVOICE_TOKEN_OPTIONS.map((opt) => (
-                  <option key={opt.symbol} value={opt.symbol} style={{ backgroundColor: '#0E1428' }}>
-                    {opt.symbol}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
-        </div>
-
-        {formError && (
-          <p className="text-nyx-danger text-sm">{formError}</p>
-        )}
-
-        <button
-          type="submit"
-          disabled={submitting}
-          className="btn-primary"
-        >
-          {submitting ? `Creating Invoice${'.'.repeat(submittingDots)}` : 'Create Invoice'}
-        </button>
-
-      </form>
+        </aside>
+      </div>
     </main>
   )
 }

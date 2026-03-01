@@ -43,6 +43,11 @@ function fmtAmount(amount: number, token: string): string {
   return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${token}`
 }
 
+function fmtLineMeta(item: Invoice['lineItems'][number], token: string): string | null {
+  if (!item.quantity || !item.unitPrice) return null
+  return `${item.quantity} x ${fmtAmount(item.unitPrice, token)}`
+}
+
 function statusLabel(status: Invoice['status']): string {
   if (status === 'paid') return 'Paid'
   if (status === 'rejected') return 'Rejected'
@@ -668,6 +673,9 @@ export default function PayInvoice() {
                 <div className="min-w-0">
                   <p className="text-sm text-nyx-text font-medium">{item.title}</p>
                   <p className="text-xs text-nyx-muted break-words">{item.description}</p>
+                  {fmtLineMeta(item, invoice.tokenSymbol) && (
+                    <p className="text-[11px] text-nyx-muted mt-1 font-mono">{fmtLineMeta(item, invoice.tokenSymbol)}</p>
+                  )}
                 </div>
                 <p className="text-sm text-nyx-text font-mono whitespace-nowrap">{fmtAmount(item.amount, invoice.tokenSymbol)}</p>
               </div>

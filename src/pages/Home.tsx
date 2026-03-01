@@ -30,7 +30,7 @@ export default function Home() {
           Business invoicing with private settlement.
         </h1>
         <p className="text-nyx-muted text-sm md:text-base max-w-3xl leading-relaxed">
-          NYX lets you issue professional invoices, share a direct payment link, and settle on-chain with verifiable proof while keeping financial intelligence private.
+          Issue invoices, share a payment link, and settle on-chain — with cryptographic proof and zero financial exposure.
         </p>
 
         <div className="mt-5 flex flex-wrap gap-3">
@@ -48,19 +48,19 @@ export default function Home() {
 
       <section>
         <div className="mb-4">
-          <h2 className="text-xl font-semibold text-nyx-text tracking-tight">One platform. One invoicing flow.</h2>
-          <p className="text-nyx-muted text-sm mt-1">From issuance to confirmation, NYX keeps payment operations clear for payers and private for businesses.</p>
+          <h2 className="text-xl font-semibold text-nyx-text tracking-tight">One flow. End to end.</h2>
+          <p className="text-nyx-muted text-sm mt-1">From invoice creation to confirmed payment — everything in one place.</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <ServiceCard
             icon={FileText}
             title="Invoice + Payment Link"
-            description="Create invoices with line-item detail, generate a formal PDF, and send a dedicated payment URL to the payer."
+            description="Create a professional invoice with line items, get a shareable payment URL, and send it directly to your client."
           />
           <ServiceCard
             icon={Building2}
             title="Private Settlement + Proof"
-            description="Accept MetaMask or card simulation entry, then finalize with on-chain proof, transaction traceability, and paid timestamp."
+            description="Clients pay via MetaMask or card. You get on-chain confirmation and a timestamped proof of payment."
           />
         </div>
       </section>

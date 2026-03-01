@@ -109,14 +109,30 @@ export function normalizeInvoiceRecord(raw: Record<string, unknown>): Invoice {
   const payerInfo = (raw.payerInfo as Invoice['payerInfo']) ?? legacyPayerInfo
   const rawLineItems = Array.isArray(raw.lineItems) ? raw.lineItems as Record<string, unknown>[] : []
   const lineItems = rawLineItems
-    .map((item) => ({
-      title: String(item.title ?? ''),
-      description: String(item.description ?? ''),
-      amount: Number(item.amount ?? 0),
-      quantity: item.quantity == null ? undefined : Number(item.quantity),
-      unitPrice: item.unitPrice == null ? undefined : Number(item.unitPrice),
-    }))
-    .filter((item) => item.title.trim() && Number.isFinite(item.amount))
+    .map((item) => {
+      const title = String(item.title ?? '')
+      const description = String(item.description ?? '')
+      const rawAmount = Number(item.amount ?? NaN)
+      const rawQuantity = item.quantity == null ? NaN : Number(item.quantity)
+      const rawUnitPrice = item.unitPrice == null ? NaN : Number(item.unitPrice)
+
+      const quantity = Number.isFinite(rawQuantity) && rawQuantity > 0 ? rawQuantity : undefined
+      const unitPrice = Number.isFinite(rawUnitPrice) && rawUnitPrice > 0
+        ? rawUnitPrice
+        : (quantity && Number.isFinite(rawAmount) && rawAmount > 0 ? rawAmount / quantity : undefined)
+      const amount = Number.isFinite(rawAmount) && rawAmount > 0
+        ? rawAmount
+        : (quantity && unitPrice ? quantity * unitPrice : NaN)
+
+      return {
+        title,
+        description,
+        amount,
+        quantity,
+        unitPrice,
+      }
+    })
+    .filter((item) => item.title.trim() && Number.isFinite(item.amount) && item.amount > 0)
   const legacyAmount = Number(raw.amount ?? 0)
   const normalizedLineItems = lineItems.length > 0
     ? lineItems
