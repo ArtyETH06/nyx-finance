@@ -303,7 +303,7 @@ export default function InvoiceDetail() {
         dueDate: formatDueDate(invoice.createdAt, invoice.dueDate),
         issuerAddress: invoice.issuerAddress,
         issuerInfo: invoice.issuerInfo,
-        payerAddress: invoice.payerAddress,
+        payerAddress: '',
         payerInfo: invoice.payerInfo,
         lineItems: invoice.lineItems,
         tokenSymbol: invoice.tokenSymbol,

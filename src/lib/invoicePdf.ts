@@ -120,11 +120,13 @@ function drawPartyBlock(doc: jsPDF, x: number, y: number, title: string, info: I
     cursorY += 13
   }
 
-  doc.setFont('courier', 'normal')
-  doc.setFontSize(8)
-  const wrappedAddress = doc.splitTextToSize(address, 245)
-  doc.text(wrappedAddress, x, cursorY)
-  cursorY += wrappedAddress.length * 10
+  if (address.trim()) {
+    doc.setFont('courier', 'normal')
+    doc.setFontSize(8)
+    const wrappedAddress = doc.splitTextToSize(address, 245)
+    doc.text(wrappedAddress, x, cursorY)
+    cursorY += wrappedAddress.length * 10
+  }
 
   return cursorY
 }

@@ -171,14 +171,14 @@ export default function PayInvoice() {
     throw new Error('Timed out waiting for funds on deposit wallet')
   }
 
-  async function buildPaidInvoiceBlob(paidInvoice: Invoice, payerAddress: string): Promise<Blob> {
+  async function buildPaidInvoiceBlob(paidInvoice: Invoice, _payerAddress: string): Promise<Blob> {
     const paidPdf = await buildInvoicePdf({
       invoiceId: paidInvoice.invoiceId,
       issueDate: formatIssueDate(paidInvoice.createdAt),
       dueDate: formatDueDate(paidInvoice.createdAt, paidInvoice.dueDate),
       issuerAddress: paidInvoice.issuerAddress,
       issuerInfo: paidInvoice.issuerInfo,
-      payerAddress: paidInvoice.payerAddress || payerAddress,
+      payerAddress: '',
       payerInfo: paidInvoice.payerInfo,
       lineItems: paidInvoice.lineItems,
       tokenSymbol: paidInvoice.tokenSymbol,
@@ -569,7 +569,7 @@ export default function PayInvoice() {
         dueDate,
         issuerAddress: currentInvoice.issuerAddress,
         issuerInfo: currentInvoice.issuerInfo,
-        payerAddress: currentInvoice.payerAddress || 'Assigned at payment time',
+        payerAddress: '',
         payerInfo: currentInvoice.payerInfo,
         lineItems: currentInvoice.lineItems,
         tokenSymbol: currentInvoice.tokenSymbol,

@@ -176,7 +176,7 @@ export default function CreateInvoice() {
           lastName: form.issuerLastName || undefined,
           company: form.issuerCompany || undefined,
         },
-        payerAddress: 'Assigned at payment time',
+        payerAddress: '',
         payerInfo: {
           firstName: form.payerFirstName || undefined,
           lastName: form.payerLastName || undefined,
