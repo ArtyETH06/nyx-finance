@@ -1,4 +1,4 @@
-const inputCls = 'w-full rounded-lg border border-nyx-border bg-nyx-bg px-3 py-2 text-nyx-text focus:outline-none focus:border-nyx-accent transition-colors'
+const inputCls = 'nyx-input'
 
 interface FiatStepWalletProps {
   walletAddress: string

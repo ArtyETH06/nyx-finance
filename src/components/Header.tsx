@@ -13,13 +13,13 @@ export default function Header({ showNavigation = true, showWallet = true }: Hea
   const { theme, toggle } = useTheme()
 
   return (
-    <header className="grid grid-cols-[1fr_auto_1fr] items-center px-6 py-4 bg-nyx-card border-b border-nyx-border">
+    <header className="grid grid-cols-[1fr_auto_1fr] items-center px-6 py-3 bg-nyx-card border-b border-nyx-border">
       <div className="justify-self-start">
         <Link to="/" className="flex flex-col leading-tight group">
           <img
             src={nyxLogo}
             alt="NYX"
-            className="h-9 w-auto -ml-12 object-contain mb-0.5 opacity-95 group-hover:opacity-100 transition-opacity duration-150"
+            className="h-8 w-auto object-contain mb-0.5 opacity-95 group-hover:opacity-100 transition-opacity duration-120"
             style={{ filter: 'var(--nyx-logo-filter)' }}
           />
           <span className="text-[11px] text-nyx-muted tracking-wide">
@@ -40,7 +40,7 @@ export default function Header({ showNavigation = true, showWallet = true }: Hea
                 to={to}
                 className={({ isActive }) =>
                   [
-                    'relative px-3 py-1.5 text-sm transition-colors duration-150',
+                    'relative px-3 py-1.5 text-sm transition-colors duration-120',
                     'after:absolute after:left-2 after:right-2 after:-bottom-1 after:h-0.5 after:rounded-full after:transition-opacity',
                     isActive
                       ? 'text-nyx-text after:bg-nyx-accent after:opacity-100'

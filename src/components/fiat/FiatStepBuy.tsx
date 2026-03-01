@@ -48,7 +48,7 @@ function fmt(value: number, max = 4): string {
   })
 }
 
-const inputCls = 'rounded-lg border border-nyx-border bg-nyx-bg px-3 py-2 text-nyx-text focus:outline-none focus:border-nyx-accent transition-colors'
+const inputCls = 'nyx-input'
 
 export default function FiatStepBuy({ state, invoiceAmount, onChange, onProceed }: FiatStepBuyProps) {
   const payAmount = parsePositive(state.amount)
@@ -84,7 +84,7 @@ export default function FiatStepBuy({ state, invoiceAmount, onChange, onProceed 
               <select
                 value={state.currency}
                 onChange={(e) => onChange({ currency: e.target.value as FiatCurrency })}
-                className={`${inputCls} appearance-none pr-14`}
+                className={`${inputCls} appearance-none pr-14 py-2`}
               >
                 <option value="USD">{CURRENCY_BADGE.USD} USD</option>
                 <option value="EUR">{CURRENCY_BADGE.EUR} EUR</option>
@@ -107,7 +107,7 @@ export default function FiatStepBuy({ state, invoiceAmount, onChange, onProceed 
               <select
                 value={state.token}
                 onChange={(e) => onChange({ token: e.target.value as FiatToken })}
-                className={`${inputCls} appearance-none pr-14`}
+                className={`${inputCls} appearance-none pr-14 py-2`}
               >
                 <option value="MON">{TOKEN_BADGE.MON} MON</option>
                 <option value="USDCm">{TOKEN_BADGE.USDCm} USDCm</option>

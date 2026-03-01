@@ -12,10 +12,10 @@ import {
 } from '../../lib/invoices'
 
 const STATUS_STYLES: Record<Invoice['status'], string> = {
-  sent: 'bg-[rgba(234,179,8,0.16)] text-yellow-300',
-  accepted: 'bg-[rgba(234,179,8,0.16)] text-yellow-300',
-  rejected: 'bg-[rgba(239,68,68,0.14)] text-nyx-danger',
-  paid: 'bg-[rgba(34,197,94,0.12)] text-nyx-success',
+  sent: 'bg-[#FEF3C7] text-[#92400E]',
+  accepted: 'bg-[#FEF3C7] text-[#92400E]',
+  rejected: 'bg-[#FEE2E2] text-[#991B1B]',
+  paid: 'bg-[#DCFCE7] text-[#166534]',
 }
 
 const STATUS_LABELS: Record<Invoice['status'], string> = {

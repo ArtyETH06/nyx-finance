@@ -14,7 +14,7 @@ const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 // ── helpers ─────────────────────────────────────────────────────────────────
 
 const inputCls =
-  'w-full bg-nyx-bg border border-nyx-border rounded-lg px-3 py-2.5 text-nyx-text text-sm placeholder:text-nyx-muted/40 focus:outline-none focus:border-nyx-accent transition-colors duration-150'
+  'nyx-input'
 
 const selectCls = `${inputCls} cursor-pointer pr-8 appearance-none`
 

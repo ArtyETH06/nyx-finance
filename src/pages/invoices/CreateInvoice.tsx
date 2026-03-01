@@ -69,7 +69,7 @@ function Field({
 }
 
 const inputCls =
-  'w-full bg-nyx-bg border border-nyx-border rounded-lg px-3 py-2.5 text-nyx-text text-sm placeholder:text-nyx-muted/40 focus:outline-none focus:border-nyx-accent transition-colors duration-150'
+  'nyx-input'
 
 export default function CreateInvoice() {
   const { activeAccount } = useUnlink()
@@ -376,7 +376,7 @@ export default function CreateInvoice() {
 
             <Field label="Token" required>
               <select
-                className="w-full bg-nyx-bg border border-nyx-border rounded-lg text-nyx-muted text-sm font-mono px-3 py-2.5 focus:outline-none focus:border-nyx-accent transition-colors duration-150"
+                className="nyx-input text-nyx-muted text-sm font-mono"
                 value={form.tokenSymbol}
                 onChange={(e) => setForm((f) => ({ ...f, tokenSymbol: e.target.value as FormState['tokenSymbol'] }))}
               >

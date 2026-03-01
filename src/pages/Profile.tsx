@@ -5,7 +5,7 @@ import { ArrowLeft, Copy, Trash2, Eye, EyeOff, KeyRound, Upload, ShieldAlert, Wa
 import { useProfile } from '../lib/profile'
 
 const inputCls =
-  'w-full bg-nyx-bg border border-nyx-border rounded-lg px-3 py-2.5 text-nyx-text text-sm placeholder:text-nyx-muted/40 focus:outline-none focus:border-nyx-accent transition-colors duration-150'
+  'nyx-input'
 
 export default function Profile() {
   const { activeAccount, exportMnemonic, clearWallet, importWallet, busy } = useUnlink()
@@ -236,7 +236,7 @@ export default function Profile() {
                 onChange={(e) => setImportPhrase(e.target.value)}
                 placeholder="Enter your recovery phrase..."
                 rows={3}
-                className="w-full bg-nyx-bg border border-nyx-border rounded-xl px-4 py-3 text-nyx-text text-sm font-mono placeholder:text-nyx-muted/40 resize-none focus:outline-none focus:border-nyx-accent transition-colors duration-150 mb-4"
+                className="nyx-input font-mono resize-none mb-4"
               />
               <button
                 onClick={() => setImportStep('confirm')}

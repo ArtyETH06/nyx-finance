@@ -118,7 +118,6 @@ export default function PayInvoice() {
   const { id } = useParams()
   const [invoice, setInvoice] = useState<Invoice | null>(null)
   const [loading, setLoading] = useState(true)
-  const [loadingDots, setLoadingDots] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [payerAddress, setPayerAddress] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
@@ -329,15 +328,6 @@ export default function PayInvoice() {
   }, [id])
 
   useEffect(() => {
-    if (!loading) return
-    setLoadingDots(0)
-    const timer = window.setInterval(() => {
-      setLoadingDots((prev) => (prev + 1) % 3)
-    }, 350)
-    return () => window.clearInterval(timer)
-  }, [loading])
-
-  useEffect(() => {
     if (!processing) return
     setProcessingDots(0)
     const timer = window.setInterval(() => {
@@ -507,15 +497,11 @@ export default function PayInvoice() {
   }
 
   if (loading) {
-    const dots = ['.', '..', '...'][loadingDots]
     return (
       <main className="fixed inset-0 flex items-center justify-center">
         <div className="text-nyx-muted text-sm inline-flex items-center gap-2">
           <Loader2 size={14} className="animate-spin text-nyx-accent" />
-          <span>
-            Loading payment page
-            <span className="inline-block min-w-[1.5em] text-left">{dots}</span>
-          </span>
+          <span>Loading payment page</span>
         </div>
       </main>
     )
@@ -590,7 +576,7 @@ export default function PayInvoice() {
       ? 'text-nyx-success'
       : invoice.status === 'rejected'
         ? 'text-nyx-danger'
-        : 'text-yellow-300'
+        : 'text-[#92400E]'
 
   return (
     <main className="px-6 py-10 min-h-[calc(100vh-220px)] flex items-center justify-center">

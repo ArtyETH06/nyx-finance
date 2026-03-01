@@ -43,10 +43,10 @@ export default function AddressBox() {
         className={[
           'flex items-center gap-2 px-3 py-1.5 select-none cursor-pointer',
           'bg-nyx-secondary rounded-full text-sm text-nyx-text font-mono',
-          'border transition-all duration-150',
+          'border transition-all duration-120',
           copied
             ? 'border-nyx-success text-nyx-success'
-            : 'border-nyx-border hover:shadow-pill-hover hover:border-nyx-accent',
+            : 'border-nyx-border hover:border-[color:var(--nyx-accent)] hover:shadow-[0_0_0_1px_rgba(99,91,255,0.18)]',
         ].join(' ')}
       >
         {copied ? (
@@ -64,7 +64,7 @@ export default function AddressBox() {
 
       {dropdownOpen && (
         <div
-          className="dropdown-animate absolute right-0 top-full mt-2 w-52 bg-nyx-secondary border border-nyx-border rounded-xl shadow-2xl overflow-hidden z-50"
+          className="dropdown-animate absolute right-0 top-full mt-2 w-52 bg-nyx-card border border-nyx-border rounded-xl shadow-[0_8px_24px_rgba(16,24,40,0.08)] overflow-hidden z-50"
           onMouseLeave={() => setDropdownOpen(false)}
         >
           <button
