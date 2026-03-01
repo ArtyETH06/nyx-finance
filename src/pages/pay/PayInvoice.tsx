@@ -162,6 +162,7 @@ export default function PayInvoice() {
   const [paymentMethod, setPaymentMethod] = useState<'metamask' | 'alchemy'>('metamask')
   const [depositAddress, setDepositAddress] = useState<string | null>(null)
   const [depositWallet, setDepositWallet] = useState<MockWalletIdentity | null>(null)
+  const [rejectReasonInput, setRejectReasonInput] = useState('')
 
   const ethereum = useMemo(() => {
     if (typeof window === 'undefined') return null
@@ -528,6 +529,48 @@ export default function PayInvoice() {
     }
   }
 
+  async function handleRejectContract() {
+    if (!invoice || !id || processing) return
+
+    const rejectionReason = rejectReasonInput.trim()
+    if (!rejectionReason) {
+      setError('Please provide a reason for rejecting this invoice')
+      return
+    }
+
+    setProcessing(true)
+    setError(null)
+    setStatusTone('muted')
+    setStatusText('Submitting rejection...')
+
+    try {
+      const res = await fetch(`/api/contracts/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'rejected',
+          rejectionReason,
+        }),
+      })
+
+      const data = await readJsonResponse<Record<string, unknown>>(
+        res,
+        'Failed to reject invoice'
+      )
+
+      const updatedRaw = (data.invoice as Record<string, unknown> | undefined) ?? data
+      const updatedInvoice = normalizeInvoiceRecord(updatedRaw)
+      setInvoice(updatedInvoice)
+      setRejectReasonInput(updatedInvoice.rejectionReason ?? rejectionReason)
+      setStatusText(null)
+    } catch (err) {
+      setStatusText(null)
+      setError(normalizeError(err))
+    } finally {
+      setProcessing(false)
+    }
+  }
+
   if (loading) {
     return (
       <main className="fixed inset-0 flex items-center justify-center">
@@ -552,7 +595,7 @@ export default function PayInvoice() {
   const isPayable = invoice.status === 'sent'
   const canExecuteMetamaskPay = isPayable && !!payerAddress && !processing
   const interactionLocked = processing || statusTone === 'success'
-  const methodSelectionLocked = interactionLocked || invoice.status === 'paid'
+  const methodSelectionLocked = interactionLocked || !isPayable
   const processingLabel = `Processing${['.', '..', '...'][processingDots]}`
   const issueDate = formatIssueDate(invoice.createdAt)
   const dueDate = formatDueDate(invoice.createdAt, invoice.dueDate)
@@ -796,6 +839,31 @@ export default function PayInvoice() {
               {invoice.status === 'paid' ? 'Paid !' : primaryButtonLabel}
             </button>
           </div>
+
+          {isPayable && (
+            <div className="space-y-2 rounded-lg border border-nyx-danger/25 bg-[rgba(239,68,68,0.06)] p-3">
+              <p className="text-[10px] uppercase tracking-widest text-nyx-danger">Refuse Contract</p>
+              <textarea
+                value={rejectReasonInput}
+                onChange={(event) => setRejectReasonInput(event.target.value)}
+                placeholder="Reason for refusal"
+                maxLength={500}
+                className="w-full rounded-lg border border-nyx-danger/40 bg-nyx-card px-3 py-2 text-sm text-nyx-text placeholder:text-nyx-muted outline-none focus:border-nyx-danger min-h-[88px]"
+                disabled={interactionLocked}
+              />
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[11px] text-nyx-muted">{rejectReasonInput.trim().length}/500</p>
+                <button
+                  type="button"
+                  onClick={handleRejectContract}
+                  disabled={interactionLocked || rejectReasonInput.trim().length === 0}
+                  className="btn-secondary border-nyx-danger/40 text-nyx-danger hover:bg-[rgba(239,68,68,0.12)] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Refuse with reason
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {statusText && !confirmedTxHash && (
