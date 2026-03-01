@@ -45,7 +45,7 @@ function payQrUrl(invoice: Invoice): string {
 export default function InvoiceDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { activeAccount, send, waitForConfirmation, refresh, balances, notes } = useUnlink()
+  const { activeAccount, send, waitForConfirmation, refresh, balances } = useUnlink()
 
   const [invoice, setInvoice] = useState<Invoice | null>(null)
   const [loading, setLoading] = useState(true)

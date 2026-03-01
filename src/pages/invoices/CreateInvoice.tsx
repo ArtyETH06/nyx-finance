@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUnlink } from '@unlink-xyz/react'
-import { jsPDF } from 'jspdf'
 import { loadProfile } from '../../lib/profile'
 import { toast } from '../../lib/toast'
 import { buildInvoicePdf, sha256Blob } from '../../lib/invoicePdf'
@@ -73,67 +72,6 @@ function Field({
 const inputCls =
   'nyx-input'
 
-async function buildLivePreviewPdf(params: {
-  invoiceId: string
-  title: string
-  issuer: string
-  customer: string
-  token: string
-  lines: Array<{ title: string; quantity: number; unitPrice: number; total: number }>
-  total: number
-}) {
-  const doc = new jsPDF({ unit: 'pt', format: 'a4' })
-  const left = 44
-  const right = doc.internal.pageSize.getWidth() - 44
-  let y = 52
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(18)
-  doc.text('NYX INVOICE PREVIEW', left, y)
-  y += 24
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10)
-  doc.text(`Invoice ID: ${params.invoiceId}`, left, y)
-  y += 14
-  doc.text(`Title: ${params.title}`, left, y)
-  y += 14
-  doc.text(`Issuer: ${params.issuer}`, left, y)
-  y += 14
-  doc.text(`Customer: ${params.customer}`, left, y)
-  y += 22
-
-  doc.setDrawColor(220, 224, 230)
-  doc.line(left, y, right, y)
-  y += 14
-  doc.setFont('helvetica', 'bold')
-  doc.text('Service', left, y)
-  doc.text('Qty', right - 180, y)
-  doc.text(`Unit (${params.token})`, right - 120, y)
-  doc.text(`Total (${params.token})`, right, y, { align: 'right' })
-  y += 8
-  doc.line(left, y, right, y)
-  y += 14
-
-  doc.setFont('helvetica', 'normal')
-  for (const line of params.lines) {
-    doc.text(line.title, left, y)
-    doc.text(String(line.quantity), right - 180, y)
-    doc.text(line.unitPrice.toFixed(2), right - 120, y)
-    doc.text(line.total.toFixed(2), right, y, { align: 'right' })
-    y += 16
-    if (y > 760) break
-  }
-
-  y += 8
-  doc.line(left, y, right, y)
-  y += 16
-  doc.setFont('helvetica', 'bold')
-  doc.text('TOTAL', left, y)
-  doc.text(`${params.total.toFixed(2)} ${params.token}`, right, y, { align: 'right' })
-
-  return doc.output('blob')
-}
 
 export default function CreateInvoice() {
   const { activeAccount } = useUnlink()
@@ -328,7 +266,6 @@ export default function CreateInvoice() {
 
   useEffect(() => {
     let cancelled = false
-    let nextUrl: string | null = null
     const timer = window.setTimeout(async () => {
       setPreviewBusy(true)
       setPreviewError(null)
@@ -341,55 +278,43 @@ export default function CreateInvoice() {
             quantity: Number(item.quantity || '1'),
             unitPrice: Number(item.amount),
           }))
-          .map((item) => ({
-            ...item,
-            amount: item.quantity * item.unitPrice,
-          }))
+          .map((item) => ({ ...item, amount: item.quantity * item.unitPrice }))
           .filter((item) =>
-            item.title &&
-            item.description &&
-            Number.isFinite(item.quantity) &&
-            item.quantity > 0 &&
-            Number.isFinite(item.unitPrice) &&
-            item.unitPrice > 0 &&
-            Number.isFinite(item.amount) &&
-            item.amount > 0
+            item.title && item.description &&
+            Number.isFinite(item.quantity) && item.quantity > 0 &&
+            Number.isFinite(item.unitPrice) && item.unitPrice > 0 &&
+            Number.isFinite(item.amount) && item.amount > 0
           )
 
         const previewLines = parsedLineItems.length > 0
           ? parsedLineItems
-          : [{
-            title: 'Service',
-            description: 'Service description',
-            quantity: 1,
-            unitPrice: 0.01,
-            amount: 0.01,
-          }]
+          : [{ title: 'Service', description: 'Service description', quantity: 1, unitPrice: 0.01, amount: 0.01 }]
 
-        const issuerName = [form.issuerFirstName, form.issuerLastName].filter(Boolean).join(' ').trim() || 'Issuer'
-        const customerName = [form.payerFirstName, form.payerLastName].filter(Boolean).join(' ').trim() || 'Customer'
-        const total = previewLines.reduce((acc, item) => acc + item.amount, 0)
-        const blob = await buildLivePreviewPdf({
+        const now = new Date().toISOString()
+        const doc = await buildInvoicePdf({
           invoiceId: previewInvoiceIdRef.current,
           title: form.invoiceTitle.trim() || 'Invoice',
-          issuer: issuerName,
-          customer: customerName,
-          token: selectedToken.symbol,
-          lines: previewLines.map((item) => ({
-            title: item.title,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            total: item.amount,
-          })),
-          total,
+          issueDate: formatIssueDate(now),
+          dueDate: formatDueDate(now, computeDueDateIso(now)),
+          issuerAddress: activeAccount?.address ?? '—',
+          issuerInfo: {
+            firstName: form.issuerFirstName || undefined,
+            lastName: form.issuerLastName || undefined,
+            company: form.issuerCompany || undefined,
+          },
+          payerAddress: '',
+          payerInfo: {
+            firstName: form.payerFirstName || undefined,
+            lastName: form.payerLastName || undefined,
+            company: form.payerCompany || undefined,
+          },
+          lineItems: previewLines,
+          tokenSymbol: selectedToken.symbol,
+          status: 'sent',
         })
-        nextUrl = URL.createObjectURL(blob)
+
         if (!cancelled) {
-          setPreviewUrl((prev) => {
-            if (prev) URL.revokeObjectURL(prev)
-            return nextUrl
-          })
-          nextUrl = null
+          setPreviewUrl(doc.output('datauristring'))
         }
       } catch {
         if (!cancelled) {
@@ -399,23 +324,13 @@ export default function CreateInvoice() {
       } finally {
         if (!cancelled) setPreviewBusy(false)
       }
-    }, 280)
+    }, 400)
 
     return () => {
       cancelled = true
       window.clearTimeout(timer)
-      if (nextUrl) URL.revokeObjectURL(nextUrl)
     }
   }, [form, activeAccount?.address])
-
-  useEffect(() => {
-    return () => {
-      setPreviewUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev)
-        return null
-      })
-    }
-  }, [])
 
   return (
     <main className="px-8 py-10 w-full max-w-none">
