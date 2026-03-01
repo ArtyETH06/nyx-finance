@@ -143,7 +143,7 @@ async function fetchPublicBalance(tokenAddress: string, walletAddress: string): 
 
 export default function Wallet() {
   const navigate = useNavigate()
-  const { ready, walletExists, activeAccount, refresh, deposit, withdraw, getTxStatus, forceResync, syncError, pendingDeposits, busy } = useUnlink()
+  const { ready, walletExists, activeAccount, refresh, deposit, withdraw, getTxStatus, forceResync, syncError, busy } = useUnlink()
   const { balances, loading: balancesLoading } = useUnlinkBalances()
 
   const [depositPending, setDepositPending] = useState(false)
@@ -165,14 +165,6 @@ export default function Wallet() {
   const [, setPublicWithdrawBalance] = useState<bigint>(0n)
 
   const address = activeAccount?.address ?? ''
-
-  // Locally dismissed pending deposits: the SDK status stays stuck at 'pending' when auto-sync
-  // is broken, so we dismiss by relayId the moment on-chain confirmation lands.
-  const [dismissedTxIds, setDismissedTxIds] = useState<Set<string>>(new Set())
-
-  function dismissPending(relayId: string) {
-    setDismissedTxIds(s => { const n = new Set(s); n.add(relayId); return n })
-  }
 
   // Guard
   useEffect(() => {
@@ -287,8 +279,6 @@ export default function Wallet() {
       }) as string
 
       await waitForOnchainConfirmation(window.ethereum, txHash)
-      // Dismiss the pending deposit immediately — don't wait for broken auto-sync to update status
-      if (result.relayId) dismissPending(result.relayId)
       setDepositAmount('')
       await refreshPrivateBalancesWithRetries(token)
       toast.show(
@@ -446,7 +436,7 @@ export default function Wallet() {
 
         {balancesLoading ? (
           <p className="text-nyx-muted text-sm">Loading balances...</p>
-        ) : balanceEntries.length === 0 && pendingDeposits.filter(pd => pd.status === 'pending' && !dismissedTxIds.has(pd.txId)).length === 0 ? (
+        ) : balanceEntries.length === 0 ? (
           <div className="text-center py-6">
             <p className="text-nyx-muted text-sm">No private assets yet.</p>
             <p className="text-nyx-muted text-xs mt-1">Deposit tokens to get started.</p>
@@ -482,26 +472,6 @@ export default function Wallet() {
                   </div>
                   <p className="text-nyx-text font-semibold tabular-nums">
                     {displayAmount(amount, decimals)}
-                    <span className="text-nyx-muted font-normal ml-1.5 text-xs">{symbol}</span>
-                  </p>
-                </div>
-              )
-            })}
-            {pendingDeposits.filter(pd => pd.status === 'pending' && !dismissedTxIds.has(pd.txId)).map((pd) => {
-              const token = getTokenByAddress(canonicalTokenAddress(pd.token))
-              const decimals = token?.decimals ?? 18
-              const symbol = token?.symbol ?? '???'
-              return (
-                <div
-                  key={pd.txId}
-                  className="flex items-center justify-between px-4 py-3 bg-nyx-hover border border-nyx-border rounded-lg opacity-60"
-                >
-                  <div>
-                    <p className="text-nyx-text text-sm font-medium">{symbol}</p>
-                    <p className="text-[10px] text-nyx-warning mt-0.5">Pending confirmation…</p>
-                  </div>
-                  <p className="text-nyx-text font-semibold tabular-nums">
-                    {displayAmount(pd.amount, decimals)}
                     <span className="text-nyx-muted font-normal ml-1.5 text-xs">{symbol}</span>
                   </p>
                 </div>
