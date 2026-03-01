@@ -333,9 +333,9 @@ export default function CreateInvoice() {
   }, [form, activeAccount?.address])
 
   return (
-    <main className="px-4 py-10 w-full max-w-none">
+    <main className="px-20 py-10 w-full max-w-none">
       <h1 className="text-2xl font-semibold text-nyx-text tracking-tight mb-8">Create Invoice</h1>
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(560px,1fr)_580px] gap-6 items-start">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(560px,1fr)_640px] gap-6 items-start">
         <form onSubmit={handleSubmit} className="space-y-8 max-w-2xl">
 
           {/* Issuer */}
@@ -488,7 +488,7 @@ export default function CreateInvoice() {
 
         </form>
 
-        <aside className="xl:sticky xl:top-6 pr-8">
+        <aside className="xl:sticky xl:top-6">
           <div className="nyx-card overflow-hidden">
             <div className="px-4 py-3 border-b border-nyx-border flex items-center justify-between">
               <p className="text-[10px] uppercase tracking-widest text-nyx-muted">Live PDF Preview</p>

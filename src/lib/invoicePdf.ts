@@ -48,11 +48,6 @@ function fmtTokenSymbol(symbol: string): string {
   return trimmed.startsWith('$') ? trimmed : `$${trimmed}`
 }
 
-function fmtLineMeta(item: InvoiceLineItem, tokenSymbol: string): string | null {
-  if (!item.quantity || !item.unitPrice) return null
-  return `${item.quantity} x ${fmtAmount(item.unitPrice)} ${tokenSymbol}`
-}
-
 function fullName(info?: InvoicePartyInfo): string {
   const name = [info?.firstName, info?.lastName].filter(Boolean).join(' ').trim()
   return name || '—'
@@ -158,8 +153,10 @@ function drawPartyBlock(doc: jsPDF, x: number, y: number, title: string, info: I
 
 function drawServicesHeader(doc: jsPDF, left: number, right: number, y: number, amountLabel: string) {
   const colService = 120
-  const colAmount = 120
-  const colDescription = (right - left) - colService - colAmount
+  const colQty = 48
+  const colUnitPrice = 96
+  const colAmount = 92
+  const colDescription = (right - left) - colService - colQty - colUnitPrice - colAmount
 
   doc.setFillColor(...COLOR.rowHeaderBg)
   doc.rect(left, y, right - left, 24, 'F')
@@ -171,6 +168,8 @@ function drawServicesHeader(doc: jsPDF, left: number, right: number, y: number, 
   doc.line(left, y, left, y + 24)
   doc.line(left + colService, y, left + colService, y + 24)
   doc.line(left + colService + colDescription, y, left + colService + colDescription, y + 24)
+  doc.line(left + colService + colDescription + colQty, y, left + colService + colDescription + colQty, y + 24)
+  doc.line(left + colService + colDescription + colQty + colUnitPrice, y, left + colService + colDescription + colQty + colUnitPrice, y + 24)
   doc.line(right, y, right, y + 24)
 
   doc.setTextColor(...COLOR.textMuted)
@@ -178,6 +177,8 @@ function drawServicesHeader(doc: jsPDF, left: number, right: number, y: number, 
   doc.setFontSize(9)
   doc.text('SERVICE', left + 8, y + 15)
   doc.text('DESCRIPTION', left + colService + 8, y + 15)
+  doc.text('QTY', left + colService + colDescription + colQty - 8, y + 15, { align: 'right' })
+  doc.text('UNIT PRICE', left + colService + colDescription + colQty + colUnitPrice - 8, y + 15, { align: 'right' })
   doc.text(amountLabel, right - 8, y + 15, { align: 'right' })
 }
 
@@ -263,8 +264,8 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<jsPDF> {
   drawInfoRow(doc, left, valueX, y, 'DUE DATE', input.dueDate)
   y += 26
 
-  const issuerBottom = drawPartyBlock(doc, left, y, 'ISSUER', input.issuerInfo, input.issuerAddress)
-  const payerBottom = drawPartyBlock(doc, left + 260, y, 'PAYER', input.payerInfo, input.payerAddress)
+  const issuerBottom = drawPartyBlock(doc, left, y, 'ISSUER', input.issuerInfo, '')
+  const payerBottom = drawPartyBlock(doc, left + 260, y, 'CUSTOMER', input.payerInfo, input.payerAddress)
   y = Math.max(issuerBottom, payerBottom) + 20
 
   drawSectionTitle(doc, left, y, 'SERVICES')
@@ -275,8 +276,10 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<jsPDF> {
   y += 24
 
   const colService = 120
-  const colAmount = 120
-  const colDescription = (right - left) - colService - colAmount
+  const colQty = 48
+  const colUnitPrice = 96
+  const colAmount = 92
+  const colDescription = (right - left) - colService - colQty - colUnitPrice - colAmount
 
   const drawServicesHeaderWithSection = () => {
     drawSectionTitle(doc, left, 64, 'SERVICES')
@@ -288,13 +291,12 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<jsPDF> {
   doc.setLineWidth(0.6)
 
   for (const item of input.lineItems) {
-    const serviceTitle = item.quantity && item.quantity > 1
-      ? `${item.title || 'Service'} (x${item.quantity})`
-      : (item.title || 'Service')
-    const lineMeta = fmtLineMeta(item, tokenSymbol)
-    const serviceDescription = lineMeta
-      ? `${lineMeta}${item.description ? ` | ${item.description}` : ''}`
-      : (item.description || '—')
+    const serviceTitle = item.title || 'Service'
+    const serviceDescription = item.description || '—'
+    const quantityText = `${item.quantity ?? 1}`
+    const unitPriceText = item.unitPrice
+      ? `${fmtAmount(item.unitPrice)} ${tokenSymbol}`
+      : '—'
     const titleLines = doc.splitTextToSize(serviceTitle, colService - 16)
     const descriptionLines = doc.splitTextToSize(serviceDescription, colDescription - 16)
     const amountText = `${fmtAmount(item.amount)} ${tokenSymbol}`
@@ -312,6 +314,8 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<jsPDF> {
     doc.line(left, y, left, y + rowHeight)
     doc.line(left + colService, y, left + colService, y + rowHeight)
     doc.line(left + colService + colDescription, y, left + colService + colDescription, y + rowHeight)
+    doc.line(left + colService + colDescription + colQty, y, left + colService + colDescription + colQty, y + rowHeight)
+    doc.line(left + colService + colDescription + colQty + colUnitPrice, y, left + colService + colDescription + colQty + colUnitPrice, y + rowHeight)
     doc.line(right, y, right, y + rowHeight)
 
     doc.setTextColor(...COLOR.textDark)
@@ -323,6 +327,8 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<jsPDF> {
     doc.text(descriptionLines, left + colService + 8, y + 16)
 
     doc.setFont('helvetica', 'bold')
+    doc.text(quantityText, left + colService + colDescription + colQty - 8, y + 16, { align: 'right' })
+    doc.text(unitPriceText, left + colService + colDescription + colQty + colUnitPrice - 8, y + 16, { align: 'right' })
     doc.text(amountText, right - 8, y + 16, { align: 'right' })
 
     y += rowHeight

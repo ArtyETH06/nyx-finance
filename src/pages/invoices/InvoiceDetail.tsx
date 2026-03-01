@@ -17,15 +17,14 @@ import { buildInvoicePdf, downloadPdf, sha256Blob } from '../../lib/invoicePdf'
 import { getTokenByAddress } from '../../lib/tokens'
 
 function fmtMoney(amount: number, symbol: string) {
-  void symbol
-  return amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $${symbol}`
 }
 
 function fmtLineMeta(item: Invoice['lineItems'][number], symbol: string): string | null {
   const quantity = item.quantity
-  const unitPrice = item.unitPrice
-  if (!quantity || !unitPrice) return null
-  return `${quantity} x ${fmtMoney(unitPrice, symbol)}`
+  void symbol
+  if (!quantity) return null
+  return `Qty: ${quantity}`
 }
 
 function payPath(invoice: Invoice): string {
@@ -421,10 +420,6 @@ export default function InvoiceDetail() {
               )}
             </div>
           </div>
-          <div>
-            <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Token</p>
-            <p className="text-nyx-text text-sm">${invoice.tokenSymbol}</p>
-          </div>
           {isIssuer && (
             <div>
               <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Pay Link</p>
@@ -485,7 +480,19 @@ export default function InvoiceDetail() {
           )}
         </div>
 
-        <button onClick={handleDownloadPdf} disabled={busy} className="btn-secondary mt-5">
+        {invoice.status === 'paid' && invoice.payment?.txHash && (
+          <a
+            href={`https://testnet.monadexplorer.com/tx/${invoice.payment.txHash}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-nyx-success text-xs inline-flex items-center gap-1.5 underline mt-5"
+          >
+            <ExternalLink size={12} />
+            Open in Explorer
+          </a>
+        )}
+
+        <button onClick={handleDownloadPdf} disabled={busy} className="btn-secondary mt-3">
           <Download size={13} strokeWidth={1.5} />
           Download Invoice
         </button>
