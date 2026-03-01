@@ -6,6 +6,7 @@ It allows freelancers to create invoices 🧾, share public payment links 🔗, 
 
 Unlink handles private settlement through shielded accounts 🛡️, ensuring payments are confirmed on-chain ⛓️ while keeping balances and transaction details confidential.
 
-NYX brings financial privacy to public blockchain payments.
+NYX brings financial privacy to public blockchain payments.  
+[NYX Finance website](https://nyx-finance.vercel.app/)
 
 **Public blockchain. Private business.** 🚀
