@@ -9,7 +9,6 @@ import {
   formatIssueDate,
   normalizeInvoiceRecord,
 } from '../../lib/invoices'
-import { buildPaymentReceiptPdf } from '../../lib/receiptPdf'
 import { buildInvoicePdf, downloadPdf, sha256Blob } from '../../lib/invoicePdf'
 import { getTokenByAddress, NATIVE_TOKEN_ADDRESS } from '../../lib/tokens'
 import FiatModal from '../../components/fiat/FiatModal'
@@ -172,6 +171,23 @@ export default function PayInvoice() {
     throw new Error('Timed out waiting for funds on deposit wallet')
   }
 
+  async function buildPaidInvoiceBlob(paidInvoice: Invoice, payerAddress: string): Promise<Blob> {
+    const paidPdf = await buildInvoicePdf({
+      invoiceId: paidInvoice.invoiceId,
+      issueDate: formatIssueDate(paidInvoice.createdAt),
+      dueDate: formatDueDate(paidInvoice.createdAt, paidInvoice.dueDate),
+      issuerAddress: paidInvoice.issuerAddress,
+      issuerInfo: paidInvoice.issuerInfo,
+      payerAddress: paidInvoice.payerAddress || payerAddress,
+      payerInfo: paidInvoice.payerInfo,
+      lineItems: paidInvoice.lineItems,
+      tokenSymbol: paidInvoice.tokenSymbol,
+      status: 'paid',
+      payment: paidInvoice.payment,
+    })
+    return paidPdf.output('blob')
+  }
+
   async function autoSettleFromFiatFunding() {
     if (!invoice || !id || !depositWallet) {
       throw new Error('Settlement context is not ready')
@@ -271,15 +287,7 @@ export default function PayInvoice() {
       const receiptTxHash = paidInvoice.payment?.txHash ?? depositTx.hash
       setConfirmedTxHash(receiptTxHash)
 
-      const receipt = await buildPaymentReceiptPdf({
-        invoiceId: paidInvoice.invoiceId,
-        amount: paidInvoice.amount,
-        token: paidInvoice.tokenSymbol,
-        payerAddress: depositWallet.address,
-        issuerZkAddress: paidInvoice.issuerAddress,
-        txHash: receiptTxHash,
-        timestampIso: paidInvoice.payment?.paidAt ?? new Date().toISOString(),
-      })
+      const receipt = await buildPaidInvoiceBlob(paidInvoice, depositWallet.address)
       setReceiptBlob(receipt)
 
       const receiptHash = await sha256Blob(receipt)
@@ -378,15 +386,10 @@ export default function PayInvoice() {
       if (receiptBlob) return
 
       try {
-        const receipt = await buildPaymentReceiptPdf({
-          invoiceId: invoice.invoiceId,
-          amount: invoice.amount,
-          token: invoice.tokenSymbol,
-          payerAddress: invoice.payment?.payerAddress ?? 'payer',
-          issuerZkAddress: invoice.issuerAddress,
-          txHash,
-          timestampIso: invoice.payment?.paidAt ?? invoice.updatedAt ?? invoice.createdAt,
-        })
+        const receipt = await buildPaidInvoiceBlob(
+          invoice,
+          invoice.payment?.payerAddress ?? invoice.payerAddress ?? 'payer'
+        )
         setReceiptBlob(receipt)
       } catch {
         // ignore receipt generation errors on load
@@ -476,15 +479,7 @@ export default function PayInvoice() {
       const receiptTxHash = paidInvoice.payment?.txHash ?? txHash
       setConfirmedTxHash(receiptTxHash)
 
-      const receipt = await buildPaymentReceiptPdf({
-        invoiceId: paidInvoice.invoiceId,
-        amount: paidInvoice.amount,
-        token: paidInvoice.tokenSymbol,
-        payerAddress,
-        issuerZkAddress: paidInvoice.issuerAddress,
-        txHash: receiptTxHash,
-        timestampIso: paidInvoice.payment?.paidAt ?? new Date().toISOString(),
-      })
+      const receipt = await buildPaidInvoiceBlob(paidInvoice, payerAddress)
       setReceiptBlob(receipt)
 
       const receiptHash = await sha256Blob(receipt)
@@ -671,15 +666,17 @@ export default function PayInvoice() {
           </div>
         </div>
 
-        <div>
-          <button
-            className="btn-secondary inline-flex w-max whitespace-nowrap"
-            onClick={handleDownloadInvoice}
-          >
-            <Download size={13} />
-            <span className="whitespace-nowrap">Download Invoice</span>
-          </button>
-        </div>
+        {invoice.status !== 'paid' && (
+          <div>
+            <button
+              className="btn-secondary inline-flex w-max whitespace-nowrap"
+              onClick={handleDownloadInvoice}
+            >
+              <Download size={13} />
+              <span className="whitespace-nowrap">Download Invoice</span>
+            </button>
+          </div>
+        )}
 
         {invoice.status === 'rejected' && (
           <div className="rounded-lg border border-nyx-danger/35 bg-[rgba(239,68,68,0.08)] px-3 py-2">
@@ -821,7 +818,7 @@ export default function PayInvoice() {
             {receiptBlob && (
               <button
                 className="btn-secondary inline-flex w-max whitespace-nowrap"
-                onClick={() => downloadPdf(receiptBlob, `NYX-Receipt-${invoice.invoiceId}.pdf`)}
+                onClick={() => downloadPdf(receiptBlob, `NYX-Invoice-${invoice.invoiceId}-PAID.pdf`)}
               >
                 <Download size={13} />
                 <span className="whitespace-nowrap">Download Receipt</span>
