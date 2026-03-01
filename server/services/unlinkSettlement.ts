@@ -1,4 +1,4 @@
-import { Unlink, createMemoryStorage, parseZkAddress } from '@unlink-xyz/core'
+import { Unlink, createMemoryStorage, parseZkAddress, type AccountView } from '@unlink-xyz/core'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -131,7 +131,7 @@ export async function buildDepositForPayer(params: {
   temporaryAccountIndex?: number
 }) {
   const unlink = await getSettlementUnlink()
-  let depositAccount: Awaited<ReturnType<typeof unlink.accounts.get>>
+  let depositAccount: AccountView
   if (params.recipientZkAddress) {
     const parsed = parseZkAddress(params.recipientZkAddress)
     depositAccount = {
@@ -157,7 +157,7 @@ export async function buildDepositForPayer(params: {
     account: depositAccount,
   })
   if (!result.to || !isLikelyHexCalldata(result.calldata)) {
-    throw new Error('Failed to build valid deposit calldata for temporary settlement account')
+    throw new Error('Failed to build valid deposit calldata')
   }
   return result
 }
