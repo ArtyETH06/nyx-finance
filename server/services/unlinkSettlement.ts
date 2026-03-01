@@ -1,4 +1,4 @@
-import { Unlink, createMemoryStorage } from '@unlink-xyz/core'
+import { Unlink, createMemoryStorage, parseZkAddress } from '@unlink-xyz/core'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -127,23 +127,59 @@ export async function buildDepositForPayer(params: {
   depositor: string
   token: string
   amount: bigint
+  recipientZkAddress?: string
   temporaryAccountIndex?: number
 }) {
   const unlink = await getSettlementUnlink()
-  const accountIndex = params.temporaryAccountIndex ?? (await unlink.accounts.list()).length
-  const existing = await unlink.accounts.get(accountIndex)
-  const temporaryAccount = existing ?? await unlink.accounts.create(accountIndex)
+  let depositAccount: Awaited<ReturnType<typeof unlink.accounts.get>>
+  if (params.recipientZkAddress) {
+    const parsed = parseZkAddress(params.recipientZkAddress)
+    depositAccount = {
+      address: params.recipientZkAddress,
+      masterPublicKey: parsed.masterPublicKey,
+      // Not needed for deposit calldata generation, but required by account view type shape.
+      nullifyingKey: 0n,
+      viewingKeyPair: {
+        privateKey: new Uint8Array(32),
+        pubkey: parsed.viewingPublicKey,
+      },
+    }
+  } else {
+    const accountIndex = params.temporaryAccountIndex ?? (await unlink.accounts.list()).length
+    const existing = await unlink.accounts.get(accountIndex)
+    depositAccount = existing ?? await unlink.accounts.create(accountIndex)
+    await unlink.accounts.setActive(accountIndex)
+  }
 
-  await unlink.accounts.setActive(accountIndex)
   const result = await unlink.deposit({
     depositor: params.depositor,
     deposits: [{ token: params.token, amount: params.amount }],
-    account: temporaryAccount,
+    account: depositAccount,
   })
   if (!result.to || !isLikelyHexCalldata(result.calldata)) {
     throw new Error('Failed to build valid deposit calldata for temporary settlement account')
   }
   return result
+}
+
+export async function confirmDepositRelay(params: {
+  depositRelayId: string
+}) {
+  const unlink = await getSettlementUnlink()
+  let status: RelayStatus
+  try {
+    status = await waitForRelaySuccess(unlink, params.depositRelayId)
+    await unlink.confirmDeposit(params.depositRelayId)
+  } catch (err) {
+    if (!isRelayNotFoundError(err)) throw err
+    await unlink.sync({ forceFullResync: true })
+    status = { state: 'succeeded' }
+  }
+
+  return {
+    relayId: params.depositRelayId,
+    txHash: status.txHash,
+  }
 }
 
 export async function confirmDepositAndSendPrivately(params: {

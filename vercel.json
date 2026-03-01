@@ -4,7 +4,35 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/((?!api/).*)",
+      "source": "/pay/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/invoices/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/wallet/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/profile/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/organization/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/settings/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/onboarding/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/(dashboard|create-invoice|create)",
       "destination": "/index.html"
     }
   ]

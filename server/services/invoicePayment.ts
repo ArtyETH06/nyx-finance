@@ -2,8 +2,7 @@ import { randomUUID } from 'crypto'
 import { db, receiptDb, toPublicInvoice, type InvoiceDoc, type ReceiptDoc } from '../db.js'
 import {
   buildDepositForPayer,
-  confirmDepositAndSendPrivately,
-  getTemporaryZkAddress,
+  confirmDepositRelay,
   toBaseUnits,
 } from './unlinkSettlement.js'
 
@@ -73,7 +72,6 @@ export async function startInvoicePayment(id: string, payerAddress: string) {
     const reusable =
       lock.payerAddress.toLowerCase() === payerAddress.toLowerCase() &&
       !!lock.depositRelayId &&
-      typeof lock.temporaryAccountIndex === 'number' &&
       isLikelyEvmContractAddress(lock.depositTo) &&
       isLikelyHexCalldata(lock.depositCalldata)
     if (reusable) {
@@ -83,12 +81,10 @@ export async function startInvoicePayment(id: string, payerAddress: string) {
         payerAddress,
         depositTo: shortHex(lock.depositTo),
         calldataBytes: lock.depositCalldata ? Math.max(0, (lock.depositCalldata.length - 2) / 2) : 0,
-        temporaryAccountIndex: lock.temporaryAccountIndex,
       })
       return {
         invoice: toPublicInvoice(invoice),
         lockId: lock.lockId,
-        temporaryZkAddress: lock.temporaryZkAddress,
         deposit: {
           relayId: lock.depositRelayId,
           to: lock.depositTo,
@@ -104,7 +100,6 @@ export async function startInvoicePayment(id: string, payerAddress: string) {
       requestedPayerAddress: payerAddress,
       depositTo: shortHex(lock.depositTo),
       calldataSample: shortHex(lock.depositCalldata),
-      temporaryAccountIndex: lock.temporaryAccountIndex,
     })
     await db.patchById(id, { paymentLock: null })
   }
@@ -125,12 +120,11 @@ export async function startInvoicePayment(id: string, payerAddress: string) {
   let updated: InvoiceDoc | null = null
   try {
     const amount = toBaseUnits(locked.amount, 18)
-    const temporary = await getTemporaryZkAddress()
     const deposit = await buildDepositForPayer({
       depositor: payerAddress,
       token: locked.tokenAddress,
       amount,
-      temporaryAccountIndex: temporary.index,
+      recipientZkAddress: locked.issuerAddress,
     })
 
     updated = await db.patchById(id, {
@@ -140,8 +134,6 @@ export async function startInvoicePayment(id: string, payerAddress: string) {
         depositTo: deposit.to,
         depositCalldata: deposit.calldata,
         depositValue: deposit.value.toString(),
-        temporaryZkAddress: temporary.address,
-        temporaryAccountIndex: temporary.index,
       },
     })
     if (!updated) throw new PaymentFlowError(500, 'Failed to persist payment lock')
@@ -154,7 +146,7 @@ export async function startInvoicePayment(id: string, payerAddress: string) {
       depositTo: shortHex(deposit.to),
       calldataBytes: Math.max(0, (deposit.calldata.length - 2) / 2),
       depositValue: deposit.value.toString(),
-      temporaryAccountIndex: temporary.index,
+      recipientZkAddress: shortHex(locked.issuerAddress),
     })
   } catch (err) {
     console.error('[payment/start] failed to build deposit payload', {
@@ -172,7 +164,6 @@ export async function startInvoicePayment(id: string, payerAddress: string) {
   return {
     invoice: toPublicInvoice(updated),
     lockId,
-    temporaryZkAddress: updated.paymentLock?.temporaryZkAddress,
     deposit: {
       relayId: updated.paymentLock?.depositRelayId,
       to: updated.paymentLock?.depositTo,
@@ -205,29 +196,21 @@ export async function confirmInvoicePayment(
   if (!lock.depositRelayId) {
     throw new PaymentFlowError(409, 'Deposit relay is missing for this payment lock')
   }
-  if (typeof lock.temporaryAccountIndex !== 'number') {
-    throw new PaymentFlowError(409, 'Temporary settlement account is missing')
-  }
 
-  const amount = toBaseUnits(invoice.amount, 18)
   console.log('[payment/confirm] confirming lock', {
     invoiceId: invoice.invoiceId,
     lockId: lock.lockId,
     payerAddress: payload.payerAddress,
     depositRelayId: lock.depositRelayId,
     depositTxHash: payload.depositTxHash,
-    temporaryAccountIndex: lock.temporaryAccountIndex,
     token: invoice.tokenSymbol,
     amount: invoice.amount,
+    recipientZkAddress: shortHex(invoice.issuerAddress),
   })
-  let settlement: Awaited<ReturnType<typeof confirmDepositAndSendPrivately>>
+  let settlement: Awaited<ReturnType<typeof confirmDepositRelay>>
   try {
-    settlement = await confirmDepositAndSendPrivately({
+    settlement = await confirmDepositRelay({
       depositRelayId: lock.depositRelayId,
-      token: invoice.tokenAddress,
-      amount,
-      recipientZkAddress: invoice.issuerAddress,
-      temporaryAccountIndex: lock.temporaryAccountIndex,
     })
   } catch (err) {
     console.error('[payment/confirm] settlement failed, clearing lock for retry', {

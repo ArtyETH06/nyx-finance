@@ -42,6 +42,12 @@ function fmtAmount(value: number): string {
   return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+function fmtTokenSymbol(symbol: string): string {
+  const trimmed = (symbol ?? '').trim()
+  if (!trimmed) return '$TOKEN'
+  return trimmed.startsWith('$') ? trimmed : `$${trimmed}`
+}
+
 function fullName(info?: InvoicePartyInfo): string {
   const name = [info?.firstName, info?.lastName].filter(Boolean).join(' ').trim()
   return name || '—'
@@ -176,6 +182,7 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<jsPDF> {
   const pageHeight = doc.internal.pageSize.getHeight()
   const left = 44
   const right = pageWidth - 44
+  const tokenSymbol = fmtTokenSymbol(input.tokenSymbol)
 
   const headerHeight = 84
   doc.setFillColor(...COLOR.headerBg)
@@ -245,7 +252,7 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<jsPDF> {
   drawSectionTitle(doc, left, y, 'SERVICES')
   y += 12
 
-  const amountColumnLabel = `AMOUNT (${input.tokenSymbol})`
+  const amountColumnLabel = `AMOUNT (${tokenSymbol})`
   drawServicesHeader(doc, left, right, y, amountColumnLabel)
   y += 24
 
@@ -265,7 +272,7 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<jsPDF> {
   for (const item of input.lineItems) {
     const titleLines = doc.splitTextToSize(item.title || 'Service', colService - 16)
     const descriptionLines = doc.splitTextToSize(item.description || '—', colDescription - 16)
-    const amountText = `${fmtAmount(item.amount)} ${input.tokenSymbol}`
+    const amountText = `${fmtAmount(item.amount)} ${tokenSymbol}`
 
     const lines = Math.max(titleLines.length, descriptionLines.length, 1)
     const rowHeight = Math.max(28, (lines * 12) + 12)
@@ -313,7 +320,7 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<jsPDF> {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(11)
   doc.text('TOTAL', left, y)
-  doc.text(`${fmtAmount(total)} ${input.tokenSymbol}`, right, y, { align: 'right' })
+  doc.text(`${fmtAmount(total)} ${tokenSymbol}`, right, y, { align: 'right' })
 
   // ── Payment Proof (only on paid invoices) ──────────────────────────────────
   if (input.status === 'paid' && (input.payment?.txHash || input.payment?.relayId)) {

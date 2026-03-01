@@ -13,6 +13,12 @@ export interface ReceiptPdfInput {
 
 let cachedLogoDataUrlPromise: Promise<string | null> | null = null
 
+function fmtTokenSymbol(symbol: string): string {
+  const trimmed = (symbol ?? '').trim()
+  if (!trimmed) return '$TOKEN'
+  return trimmed.startsWith('$') ? trimmed : `$${trimmed}`
+}
+
 async function getLogoDataUrl(): Promise<string | null> {
   if (cachedLogoDataUrlPromise) return cachedLogoDataUrlPromise
   cachedLogoDataUrlPromise = new Promise((resolve) => {
@@ -52,6 +58,7 @@ export async function buildPaymentReceiptPdf(input: ReceiptPdfInput): Promise<Bl
 
   const pageWidth = doc.internal.pageSize.getWidth()
   const left = 44
+  const tokenSymbol = fmtTokenSymbol(input.token)
 
   doc.setFillColor(5, 8, 20)
   doc.rect(0, 0, pageWidth, 84, 'F')
@@ -74,7 +81,7 @@ export async function buildPaymentReceiptPdf(input: ReceiptPdfInput): Promise<Bl
   let y = 128
   const rows: Array<[string, string]> = [
     ['Invoice ID', input.invoiceId],
-    ['Amount', `${input.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${input.token}`],
+    ['Amount', `${input.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${tokenSymbol}`],
     ['From', input.payerAddress],
     ['To', input.issuerZkAddress],
     ['Transaction Hash', input.txHash],
