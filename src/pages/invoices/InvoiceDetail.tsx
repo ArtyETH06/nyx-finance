@@ -20,13 +20,6 @@ function fmtMoney(amount: number, symbol: string) {
   return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $${symbol}`
 }
 
-function fmtLineMeta(item: Invoice['lineItems'][number], symbol: string): string | null {
-  const quantity = item.quantity
-  void symbol
-  if (!quantity) return null
-  return `Qty: ${quantity}`
-}
-
 function payPath(invoice: Invoice): string {
   return `/pay/${encodeURIComponent(invoice.invoiceId || invoice._id)}`
 }
@@ -403,10 +396,7 @@ export default function InvoiceDetail() {
                       {item.description && (
                         <p className="text-nyx-muted text-xs mt-0.5 leading-relaxed">{item.description}</p>
                       )}
-                      <p className="text-nyx-muted text-[11px] mt-1 font-mono">
-                        Qty: {item.quantity ?? 1}
-                        {fmtLineMeta(item, invoice.tokenSymbol) ? ` • ${fmtLineMeta(item, invoice.tokenSymbol)}` : ''}
-                      </p>
+                      <p className="text-nyx-muted text-[11px] mt-1 font-mono">Qty: {item.quantity ?? 1}</p>
                     </div>
                     <p className="text-nyx-text text-sm font-mono whitespace-nowrap flex-shrink-0">{fmtMoney(item.amount, invoice.tokenSymbol)}</p>
                   </div>
