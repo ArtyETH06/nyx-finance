@@ -143,7 +143,7 @@ async function fetchPublicBalance(tokenAddress: string, walletAddress: string): 
 
 export default function Wallet() {
   const navigate = useNavigate()
-  const { ready, walletExists, activeAccount, refresh, deposit, withdraw, getTxStatus } = useUnlink()
+  const { ready, walletExists, activeAccount, refresh, deposit, withdraw, getTxStatus, forceResync, syncError, pendingDeposits, busy } = useUnlink()
   const { balances, loading: balancesLoading } = useUnlinkBalances()
 
   const [depositPending, setDepositPending] = useState(false)
@@ -406,11 +406,30 @@ export default function Wallet() {
 
       {/* ── Section 2: Private Balances ──────────────────────────── */}
       <div className="nyx-card p-6">
-        <SectionHeader icon={ShieldCheck} title="Private Balances" />
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-2">
+            <ShieldCheck size={14} className="text-nyx-accent" strokeWidth={1.5} />
+            <p className="text-[10px] font-semibold tracking-widest text-nyx-muted uppercase">Private Balances</p>
+          </div>
+          <button
+            onClick={() => forceResync()}
+            disabled={busy}
+            title="Force full resync from chain"
+            className="text-[10px] text-nyx-muted hover:text-nyx-text transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {busy ? 'Syncing…' : 'Force Resync'}
+          </button>
+        </div>
+
+        {syncError && (
+          <div className="mb-4 px-3 py-2 rounded-lg border border-[rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.08)] text-[11px] text-red-400 break-all">
+            Sync error: {syncError}
+          </div>
+        )}
 
         {balancesLoading ? (
           <p className="text-nyx-muted text-sm">Loading balances...</p>
-        ) : balanceEntries.length === 0 ? (
+        ) : balanceEntries.length === 0 && pendingDeposits.filter(pd => pd.status === 'pending').length === 0 ? (
           <div className="text-center py-6">
             <p className="text-nyx-muted text-sm">No private assets yet.</p>
             <p className="text-nyx-muted text-xs mt-1">Deposit tokens to get started.</p>
@@ -446,6 +465,26 @@ export default function Wallet() {
                   </div>
                   <p className="text-nyx-text font-semibold tabular-nums">
                     {displayAmount(amount, decimals)}
+                    <span className="text-nyx-muted font-normal ml-1.5 text-xs">{symbol}</span>
+                  </p>
+                </div>
+              )
+            })}
+            {pendingDeposits.filter(pd => pd.status === 'pending').map((pd) => {
+              const token = getTokenByAddress(canonicalTokenAddress(pd.token))
+              const decimals = token?.decimals ?? 18
+              const symbol = token?.symbol ?? '???'
+              return (
+                <div
+                  key={pd.txId}
+                  className="flex items-center justify-between px-4 py-3 bg-nyx-hover border border-nyx-border rounded-lg opacity-60"
+                >
+                  <div>
+                    <p className="text-nyx-text text-sm font-medium">{symbol}</p>
+                    <p className="text-[10px] text-nyx-warning mt-0.5">Pending confirmation…</p>
+                  </div>
+                  <p className="text-nyx-text font-semibold tabular-nums">
+                    {displayAmount(pd.amount, decimals)}
                     <span className="text-nyx-muted font-normal ml-1.5 text-xs">{symbol}</span>
                   </p>
                 </div>
