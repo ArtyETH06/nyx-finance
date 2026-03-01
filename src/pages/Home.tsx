@@ -27,10 +27,10 @@ export default function Home() {
       <section className="nyx-card p-6 md:p-7">
         <p className="text-[10px] uppercase tracking-[0.22em] text-nyx-muted mb-3">NYX Platform</p>
         <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-nyx-text mb-4">
-          Business invoicing with private settlement.
+          Invoice. Share. Get paid. Stay private.
         </h1>
         <p className="text-nyx-muted text-sm md:text-base max-w-3xl leading-relaxed">
-          Issue invoices, share a payment link, and settle on-chain — with cryptographic proof and zero financial exposure.
+          Create invoices, share a payment link, and settle on-chain — without exposing pricing or clients.
         </p>
 
         <div className="mt-5 flex flex-wrap gap-3">
