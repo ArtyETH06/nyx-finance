@@ -114,7 +114,7 @@ export default function InvoiceDashboard() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-semibold text-nyx-text tracking-tight">Invoices</h1>
-          <p className="text-nyx-muted text-sm mt-0.5">Sent and received invoices for your address.</p>
+          <p className="text-nyx-muted text-sm mt-0.5">Track your sent invoices and their current status.</p>
         </div>
         <div className="flex items-center gap-3">
           <button

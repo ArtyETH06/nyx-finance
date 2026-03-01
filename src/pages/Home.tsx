@@ -23,7 +23,7 @@ function ServiceCard({
 
 export default function Home() {
   return (
-    <main className="max-w-6xl mx-auto px-6 py-8 space-y-6">
+    <main className="min-h-[calc(100vh-134px)] max-w-6xl mx-auto px-6 py-8 flex flex-col justify-center gap-6">
       <section className="nyx-card p-6 md:p-7">
         <p className="text-[10px] uppercase tracking-[0.22em] text-nyx-muted mb-3">NYX Platform</p>
         <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-nyx-text mb-4">
