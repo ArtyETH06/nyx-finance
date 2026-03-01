@@ -4,6 +4,7 @@ import 'dotenv/config'
 import { contractsRouter } from './routes/contracts.js'
 import { paychecksRouter } from './routes/paychecks.js'
 import { scheduledPaymentsRouter } from './routes/scheduledPayments.js'
+import { emailRouter } from './routes/email.js'
 
 const app = express()
 
@@ -13,6 +14,7 @@ app.use(express.json())
 app.use('/api', contractsRouter)
 app.use('/api', paychecksRouter)
 app.use('/api', scheduledPaymentsRouter)
+app.use('/api', emailRouter)
 
 app.get('/health', (_req, res) => res.json({ ok: true }))
 

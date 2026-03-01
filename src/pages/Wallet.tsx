@@ -268,7 +268,7 @@ export default function Wallet() {
           </span>
         </div>
 
-        <p className="text-nyx-muted text-xs uppercase tracking-widest mb-2">ZK Address</p>
+        <p className="text-nyx-muted text-xs uppercase tracking-widest mb-2">Unlink Address</p>
         <div
           className="relative group cursor-pointer inline-block w-full"
           onClick={handleCopyAddress}
