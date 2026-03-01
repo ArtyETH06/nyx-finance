@@ -13,6 +13,9 @@
   --nyx-muted:             #4B5563;
   --nyx-placeholder:       #9CA3AF;
   --nyx-label:             #6B7280;
+  --nyx-input-bg:          #FFFFFF;
+  --nyx-input-border:      #D1D5DB;
+  --nyx-input-focus-ring:  rgba(99, 91, 255, 0.15);
   --nyx-accent:            #635BFF;
   --nyx-accent-h:          #4F46E5;
   --nyx-focus-ring:        rgba(99, 91, 255, 0.4);
@@ -36,6 +39,11 @@
   --nyx-border:            rgba(255,255,255,0.06);
   --nyx-text:              #E6E9F2;
   --nyx-muted:             #8C94B3;
+  --nyx-placeholder:       rgba(140, 148, 179, 0.4);
+  --nyx-label:             #8C94B3;
+  --nyx-input-bg:          var(--nyx-bg);
+  --nyx-input-border:      var(--nyx-border);
+  --nyx-input-focus-ring:  rgba(108, 92, 231, 0.18);
   --nyx-accent:            #6C5CE7;
   --nyx-accent-h:          #7D6BFF;
   --nyx-success:           #22C55E;
@@ -159,8 +167,8 @@ body {
 
   .nyx-input {
     width: 100%;
-    background-color: #FFFFFF;
-    border: 1px solid #D1D5DB;
+    background-color: var(--nyx-input-bg);
+    border: 1px solid var(--nyx-input-border);
     border-radius: 8px;
     padding: 10px 12px;
     color: var(--nyx-text);
@@ -173,7 +181,7 @@ body {
   .nyx-input:focus {
     outline: none;
     border-color: var(--nyx-accent);
-    box-shadow: 0 0 0 3px rgba(99, 91, 255, 0.15);
+    box-shadow: 0 0 0 3px var(--nyx-input-focus-ring);
   }
 }
 
