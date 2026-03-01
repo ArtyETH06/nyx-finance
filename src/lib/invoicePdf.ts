@@ -7,6 +7,7 @@ import type { InvoiceLineItem, InvoicePartyInfo, InvoiceStatus } from './invoice
 
 interface InvoicePdfInput {
   invoiceId: string
+  title?: string
   issueDate: string
   dueDate: string
   issuerAddress: string
@@ -120,7 +121,7 @@ function drawPartyBlock(doc: jsPDF, x: number, y: number, title: string, info: I
     cursorY += 13
   }
 
-  if (address.trim()) {
+  if (address && address.trim()) {
     doc.setFont('courier', 'normal')
     doc.setFontSize(8)
     const wrappedAddress = doc.splitTextToSize(address, 245)
@@ -219,6 +220,19 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<jsPDF> {
   const valueX = left + 130
   drawInfoRow(doc, left, valueX, y, 'INVOICE ID', input.invoiceId)
   y += 16
+  if (input.title && input.title.trim()) {
+    doc.setTextColor(...COLOR.textMuted)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8)
+    doc.text('CONTRACT TITLE', left, y)
+
+    doc.setTextColor(...COLOR.textDark)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    const titleLines = doc.splitTextToSize(input.title.trim(), right - valueX)
+    doc.text(titleLines, valueX, y)
+    y += Math.max(16, titleLines.length * 11)
+  }
   drawInfoRow(doc, left, valueX, y, 'ISSUE DATE', input.issueDate)
   y += 16
   drawInfoRow(doc, left, valueX, y, 'DUE DATE', input.dueDate)

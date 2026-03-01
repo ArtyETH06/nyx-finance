@@ -299,6 +299,7 @@ export default function InvoiceDetail() {
     try {
       const pdf = await buildInvoicePdf({
         invoiceId: invoice.invoiceId,
+        title: invoice.title,
         issueDate: formatIssueDate(invoice.createdAt),
         dueDate: formatDueDate(invoice.createdAt, invoice.dueDate),
         issuerAddress: invoice.issuerAddress,
@@ -424,6 +425,10 @@ export default function InvoiceDetail() {
         </div>
 
         <div className="space-y-3">
+          <div>
+            <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-1">Title</p>
+            <p className="text-nyx-text text-sm font-medium">{invoice.title}</p>
+          </div>
           <div>
             <p className="text-[10px] uppercase tracking-widest text-nyx-muted mb-3">Services</p>
             <div className="space-y-2">

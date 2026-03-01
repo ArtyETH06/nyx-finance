@@ -174,6 +174,7 @@ export default function PayInvoice() {
   async function buildPaidInvoiceBlob(paidInvoice: Invoice, _payerAddress: string): Promise<Blob> {
     const paidPdf = await buildInvoicePdf({
       invoiceId: paidInvoice.invoiceId,
+      title: paidInvoice.title,
       issueDate: formatIssueDate(paidInvoice.createdAt),
       dueDate: formatDueDate(paidInvoice.createdAt, paidInvoice.dueDate),
       issuerAddress: paidInvoice.issuerAddress,
@@ -565,6 +566,7 @@ export default function PayInvoice() {
     try {
       const doc = await buildInvoicePdf({
         invoiceId: currentInvoice.invoiceId,
+        title: currentInvoice.title,
         issueDate,
         dueDate,
         issuerAddress: currentInvoice.issuerAddress,

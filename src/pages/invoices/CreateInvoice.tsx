@@ -14,6 +14,7 @@ interface LineItemForm {
 }
 
 interface FormState {
+  invoiceTitle:    string
   issuerFirstName: string
   issuerLastName:  string
   issuerCompany:   string
@@ -25,6 +26,7 @@ interface FormState {
 }
 
 const empty: FormState = {
+  invoiceTitle:    'Smart Contract Development Agreement',
   issuerFirstName: '',
   issuerLastName:  '',
   issuerCompany:   '',
@@ -138,6 +140,12 @@ export default function CreateInvoice() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setFormError(null)
+    const normalizedInvoiceTitle = form.invoiceTitle.trim()
+
+    if (!normalizedInvoiceTitle) {
+      setFormError('Invoice title is required.')
+      return
+    }
 
     const parsedLineItems = form.lineItems
       .map((item) => ({
@@ -183,6 +191,7 @@ export default function CreateInvoice() {
           company: form.payerCompany || undefined,
         },
         lineItems: parsedLineItems,
+        title: normalizedInvoiceTitle,
         tokenSymbol: selectedToken.symbol,
         status: 'sent',
       })
@@ -214,7 +223,7 @@ export default function CreateInvoice() {
             company: form.payerCompany || undefined,
           },
           lineItems: parsedLineItems,
-          title: parsedLineItems[0].title,
+          title: normalizedInvoiceTitle,
           description: parsedLineItems[0].description,
           amount: totalAmount,
           tokenAddress: selectedToken.address,
@@ -304,6 +313,15 @@ export default function CreateInvoice() {
         <div className="nyx-card p-6">
           <SectionLabel>Invoice Details</SectionLabel>
           <div className="space-y-4">
+            <Field label="Invoice Title" required>
+              <input
+                className={inputCls}
+                value={form.invoiceTitle}
+                onChange={set('invoiceTitle')}
+                placeholder="Service Agreement — Q1 2026"
+                required
+              />
+            </Field>
             {form.lineItems.map((item, index) => (
               <div key={index} className="rounded-lg border border-nyx-border p-3 space-y-3">
                 <div className="flex items-center justify-between">
