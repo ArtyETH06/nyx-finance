@@ -30,8 +30,8 @@ const empty: FormState = {
   issuerFirstName: '',
   issuerLastName:  '',
   issuerCompany:   '',
-  payerFirstName:  'Alex',
-  payerLastName:   'Rivera',
+  payerFirstName:  'John',
+  payerLastName:   'Whipe',
   payerCompany:    'NYX Labs',
   lineItems:       [
     { title: 'Smart Contract Development', description: 'Development of ERC-20 token contract and deployment on Monad testnet.', amount: '0.0314' },
