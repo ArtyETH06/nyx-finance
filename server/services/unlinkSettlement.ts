@@ -1,4 +1,5 @@
 import { Unlink, createMemoryStorage, parseZkAddress, type AccountView } from '@unlink-xyz/core'
+import { decodeAddress as sdkDecodeAddress } from '@unlink-xyz/sdk'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -17,7 +18,19 @@ function isRelayNotFoundError(err: unknown): boolean {
   return typeof anyErr.message === 'string' && anyErr.message.toLowerCase().includes('relay not found')
 }
 
-const DEFAULT_CHAIN = 'monad-testnet'
+// Auto-detect staging vs production based on the engine URL configured for the frontend.
+// Both share the same chain name format used by @unlink-xyz/core.
+function resolveChain(): 'monad-testnet' | 'monad-testnet-staging' {
+  const explicit = env('NYX_UNLINK_CHAIN')
+  if (explicit === 'monad-testnet-staging') return 'monad-testnet-staging'
+  if (explicit === 'monad-testnet') return 'monad-testnet'
+  // Infer from the frontend engine URL if not explicitly set
+  const engineUrl = env('VITE_UNLINK_ENGINE_URL') ?? ''
+  if (engineUrl.includes('staging')) return 'monad-testnet-staging'
+  return 'monad-testnet'
+}
+
+
 const DEFAULT_TIMEOUT_MS = 240_000
 const POLL_INTERVAL_MS = 2_000
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -75,6 +88,23 @@ async function waitForRelaySuccess(unlink: Unlink, relayId: string, timeoutMs = 
   throw new Error(`Timed out waiting for relay ${relayId} (${lastState})`)
 }
 
+function makeAuthedFetch(gatewayUrl: string, apiKey: string): typeof globalThis.fetch {
+  const gatewayBase = gatewayUrl.replace(/\/+$/, '')
+  return (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    if (url.startsWith(gatewayBase)) {
+      init = {
+        ...init,
+        headers: {
+          ...init?.headers,
+          Authorization: `Bearer ${apiKey}`,
+        },
+      }
+    }
+    return globalThis.fetch(input, init)
+  }
+}
+
 async function getSettlementUnlink(): Promise<Unlink> {
   if (!unlinkPromise) {
     unlinkPromise = (async () => {
@@ -82,10 +112,17 @@ async function getSettlementUnlink(): Promise<Unlink> {
       const localMnemonic = readLocalMnemonic()
       const mnemonic = envMnemonic ?? localMnemonic ?? undefined
 
+      const apiKey = env('NYX_UNLINK_API_KEY') ?? env('VITE_UNLINK_API_KEY')
+      const engineUrl = env('VITE_UNLINK_ENGINE_URL')
+      const fetchImpl = apiKey && engineUrl
+        ? makeAuthedFetch(engineUrl, apiKey)
+        : globalThis.fetch
+
       const unlink = await Unlink.create({
-        chain: (env('NYX_UNLINK_CHAIN') ?? DEFAULT_CHAIN) as 'monad-testnet',
+        chain: resolveChain(),
         storage: createMemoryStorage(),
         autoSync: false,
+        fetch: fetchImpl,
       })
 
       const seedExists = await unlink.seed.exists()
@@ -133,7 +170,14 @@ export async function buildDepositForPayer(params: {
   const unlink = await getSettlementUnlink()
   let depositAccount: AccountView
   if (params.recipientZkAddress) {
-    const parsed = parseZkAddress(params.recipientZkAddress)
+    // Try SDK decoder first (frontend uses @unlink-xyz/sdk which generates a different
+    // address format than @unlink-xyz/core). Fall back to core parser for legacy addresses.
+    let parsed: { masterPublicKey: bigint; viewingPublicKey: unknown }
+    try {
+      parsed = sdkDecodeAddress(params.recipientZkAddress)
+    } catch {
+      parsed = parseZkAddress(params.recipientZkAddress)
+    }
     depositAccount = {
       address: params.recipientZkAddress,
       masterPublicKey: parsed.masterPublicKey,
@@ -141,7 +185,7 @@ export async function buildDepositForPayer(params: {
       nullifyingKey: 0n,
       viewingKeyPair: {
         privateKey: new Uint8Array(32),
-        pubkey: parsed.viewingPublicKey,
+        pubkey: parsed.viewingPublicKey as AccountView['viewingKeyPair']['pubkey'],
       },
     }
   } else {

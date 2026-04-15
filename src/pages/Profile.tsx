@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useUnlink } from '@unlink-xyz/react'
+import { useUnlink } from '../lib/unlink'
 import { ArrowLeft, Copy, Trash2, Eye, EyeOff, KeyRound, Upload, ShieldAlert, Wallet, Check } from 'lucide-react'
 import { useProfile } from '../lib/profile'
 

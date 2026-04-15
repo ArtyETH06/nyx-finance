@@ -1,6 +1,6 @@
 import { Interface, JsonRpcProvider, Wallet, parseUnits } from 'ethers'
 import { getOrCreatePersistentAlchemyPayWallet } from './mockWallets'
-import { NATIVE_TOKEN_ADDRESS } from './tokens'
+import { NATIVE_TOKEN_ADDRESS, UNLKM_TOKEN_ADDRESS } from './tokens'
 
 type FiatToken = 'MON' | 'USDCm' | 'USDT' | 'UNLKm'
 type FiatCurrency = 'USD' | 'EUR'
@@ -8,7 +8,7 @@ type FiatCurrency = 'USD' | 'EUR'
 const TOKEN_BY_SYMBOL: Record<Exclude<FiatToken, 'MON'>, string> = {
   USDCm: '0xc4fb617e4e4cfbdeb07216dff62b4e46a2d6fdf6',
   USDT: '0x86b6341d3c56bc379697d247fc080f5f2c8eed7b',
-  UNLKm: '0xaaa4e95d4da878baf8e10745fdf26e196918df6b',
+  UNLKm: UNLKM_TOKEN_ADDRESS,
 }
 
 const ERC20_ABI = [

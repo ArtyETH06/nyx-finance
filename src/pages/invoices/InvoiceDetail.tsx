@@ -1,13 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { parseAmount, useUnlink } from '@unlink-xyz/react'
+import { parseAmount, useUnlink } from '../../lib/unlink'
+import { apiFetch } from '../../lib/api'
 import { ArrowLeft, Check, Download, ExternalLink, Link2, Loader2, QrCode, X } from 'lucide-react'
 import { toast } from '../../lib/toast'
 import type { Invoice } from '../../lib/invoices'
 import {
   applyInvoiceLocalOverride,
+  cacheInvoice,
+  cacheInvoices,
+  formatInvoiceApiError,
   formatDueDate,
   formatIssueDate,
+  getCachedInvoice,
   invoiceStatusLabel,
   normalizeInvoiceRecord,
   setInvoiceLocalOverride,
@@ -41,10 +46,11 @@ export default function InvoiceDetail() {
   const navigate = useNavigate()
   const { activeAccount, send, waitForConfirmation, refresh, balances } = useUnlink()
 
-  const [invoice, setInvoice] = useState<Invoice | null>(null)
+  const [invoice, setInvoice] = useState<Invoice | null>(() => getCachedInvoice(id))
   const [loading, setLoading] = useState(true)
   const [loadingDots, setLoadingDots] = useState(1)
   const [error, setError] = useState<string | null>(null)
+  const [showingCachedInvoice, setShowingCachedInvoice] = useState(() => !!getCachedInvoice(id))
   const [busy, setBusy] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
   const [showReject, setShowReject] = useState(false)
@@ -54,6 +60,11 @@ export default function InvoiceDetail() {
 
   const balancesRef = useRef(balances)
   useEffect(() => { balancesRef.current = balances }, [balances])
+  useEffect(() => {
+    const cached = getCachedInvoice(id)
+    setInvoice(cached)
+    setShowingCachedInvoice(!!cached)
+  }, [id])
 
   const address = activeAccount?.address ?? ''
   const isPayer = !!invoice && invoice.payerAddress === address
@@ -74,17 +85,20 @@ export default function InvoiceDetail() {
     if (!id) return
     setLoading(true)
     setError(null)
+    const cached = getCachedInvoice(id)
     try {
       // Prefer list-by-address first for compatibility with older API versions.
       if (address) {
-        const listRes = await fetch(`/api/contracts?address=${encodeURIComponent(address)}&ts=${Date.now()}`, {
+        const listRes = await apiFetch(`/api/contracts?address=${encodeURIComponent(address)}&ts=${Date.now()}`, {
           cache: 'no-store',
         })
         if (listRes.ok) {
           const listRaw = await listRes.json() as Record<string, unknown>[]
           const list = listRaw.map((item) => applyInvoiceLocalOverride(normalizeInvoiceRecord(item)))
+          cacheInvoices(list)
           const match = list.find((inv) => inv._id === id || inv.invoiceId === id)
           if (match) {
+            setShowingCachedInvoice(false)
             setInvoice(match)
             return
           }
@@ -92,18 +106,26 @@ export default function InvoiceDetail() {
       }
 
       // Fallback to direct by-id endpoint (new API).
-      const res = await fetch(`/api/contracts/${id}?ts=${Date.now()}`, {
+      const res = await apiFetch(`/api/contracts/${id}?ts=${Date.now()}`, {
         cache: 'no-store',
       })
       if (res.ok) {
         const data = await res.json() as Record<string, unknown>
-        setInvoice(applyInvoiceLocalOverride(normalizeInvoiceRecord(data)))
+        const normalized = applyInvoiceLocalOverride(normalizeInvoiceRecord(data))
+        cacheInvoice(normalized)
+        setShowingCachedInvoice(false)
+        setInvoice(normalized)
         return
       }
 
       throw new Error('Failed to load invoice')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Unknown error')
+      if (cached) {
+        setShowingCachedInvoice(true)
+        setInvoice(cached)
+      } else {
+        setError(formatInvoiceApiError(e, 'Unknown error'))
+      }
     } finally {
       setLoading(false)
     }
@@ -132,21 +154,21 @@ export default function InvoiceDetail() {
   async function patchInvoice(patch: Record<string, unknown>) {
     if (!id) throw new Error('Missing invoice id')
 
-    const tryPatch = async (targetId: string) => fetch(`/api/contracts/${targetId}?ts=${Date.now()}`, {
+    const tryPatch = async (targetId: string) => apiFetch(`/api/contracts/${targetId}?ts=${Date.now()}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       cache: 'no-store',
       body: JSON.stringify(patch),
     })
 
-    const tryPostUpdate = async (targetId: string) => fetch(`/api/contracts/${targetId}/update?ts=${Date.now()}`, {
+    const tryPostUpdate = async (targetId: string) => apiFetch(`/api/contracts/${targetId}/update?ts=${Date.now()}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       cache: 'no-store',
       body: JSON.stringify(patch),
     })
 
-    const tryPostGenericUpdate = async (targetId: string) => fetch(`/api/contracts/update?ts=${Date.now()}`, {
+    const tryPostGenericUpdate = async (targetId: string) => apiFetch(`/api/contracts/update?ts=${Date.now()}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       cache: 'no-store',
@@ -183,6 +205,8 @@ export default function InvoiceDetail() {
     const data = await res.json() as { invoice?: Record<string, unknown> }
     if (data.invoice) {
       const normalized = normalizeInvoiceRecord(data.invoice)
+      cacheInvoice(normalized)
+      setShowingCachedInvoice(false)
       setInvoice(normalized)
       setInvoiceLocalOverride(
         normalized._id,
@@ -318,7 +342,12 @@ export default function InvoiceDetail() {
   if (error || !invoice) {
     return (
       <main className="px-8 py-10 w-full flex justify-center">
-        <div className="w-full max-w-3xl">
+        <div className="w-full max-w-3xl space-y-4">
+          {showingCachedInvoice && (
+            <div className="rounded-lg border border-[rgba(245,158,11,0.28)] bg-[rgba(245,158,11,0.08)] px-4 py-3 text-sm text-yellow-300">
+              Live invoice sync is unavailable. Showing the last cached invoice from this device.
+            </div>
+          )}
           <div className="nyx-card p-6 border-nyx-danger/20 text-nyx-danger text-sm">
             {error ?? 'Invoice not found'}
           </div>
@@ -341,6 +370,11 @@ export default function InvoiceDetail() {
   return (
     <main className="px-8 py-10 w-full">
       <div className="w-full max-w-3xl mx-auto md:-translate-x-20 space-y-4">
+        {showingCachedInvoice && (
+          <div className="rounded-lg border border-[rgba(245,158,11,0.28)] bg-[rgba(245,158,11,0.08)] px-4 py-3 text-sm text-yellow-300">
+            Live invoice sync is unavailable. Showing the last cached invoice from this device.
+          </div>
+        )}
         <button
           onClick={() => navigate('/invoices')}
           className="btn-ghost text-nyx-muted text-sm hover:text-nyx-text inline-flex items-center gap-1.5"

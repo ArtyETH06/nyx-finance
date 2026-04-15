@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { useUnlink } from '@unlink-xyz/react'
+import { useUnlink } from '../lib/unlink'
 import { useNavigate } from 'react-router-dom'
 import { Wallet, LayoutDashboard, User } from 'lucide-react'
 

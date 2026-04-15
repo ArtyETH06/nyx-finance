@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useUnlink } from '@unlink-xyz/react'
+import { useUnlink } from '../lib/unlink'
 import { ShieldAlert, KeyRound } from 'lucide-react'
 
 type Step = 'intro' | 'mnemonic' | 'confirm'

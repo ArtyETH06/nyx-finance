@@ -124,7 +124,9 @@ export async function startInvoicePayment(id: string, payerAddress: string) {
       depositor: payerAddress,
       token: locked.tokenAddress,
       amount,
-      recipientZkAddress: locked.issuerAddress,
+      recipientZkAddress: locked.issuerAddress?.startsWith('unlink1')
+        ? locked.issuerAddress
+        : undefined,
     })
 
     updated = await db.patchById(id, {

@@ -1,7 +1,13 @@
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import dotenv from 'dotenv'
 import { MongoClient, ObjectId, type Filter } from 'mongodb'
+
+// Mirror the Express dev server behavior so direct API handler imports
+// also see values from .env and .env.local during local development.
+dotenv.config()
+dotenv.config({ path: '.env.local', override: true })
 
 export type InvoiceStatus = 'sent' | 'accepted' | 'rejected' | 'paid'
 export type OrgMemberRole = 'admin' | 'member'
@@ -581,4 +587,35 @@ export const receiptDb = {
     writeAllReceiptFile(data)
     return String(data[idx]._id ?? invoiceId)
   },
+}
+
+export async function resetAppData() {
+  const mongo = await getClient()
+
+  if (mongo) {
+    const database = mongo.db(MONGODB_DB)
+    await Promise.all([
+      database.collection<InvoiceDoc>(COLLECTION).deleteMany({}),
+      database.collection<OrganizationDoc>(ORG_COLLECTION).deleteMany({}),
+      database.collection<PaycheckDoc>(PAYCHECK_COLLECTION).deleteMany({}),
+      database.collection<ScheduledPaymentDoc>(SCHEDULED_COLLECTION).deleteMany({}),
+      database.collection<ReceiptDoc>(RECEIPT_COLLECTION).deleteMany({}),
+    ])
+    return {
+      backend: 'mongo' as const,
+      dbName: MONGODB_DB,
+      collections: [COLLECTION, ORG_COLLECTION, PAYCHECK_COLLECTION, SCHEDULED_COLLECTION, RECEIPT_COLLECTION],
+    }
+  }
+
+  writeAllFile([])
+  writeAllOrgFile([])
+  writeAllPaycheckFile([])
+  writeAllScheduledFile([])
+  writeAllReceiptFile([])
+
+  return {
+    backend: 'file' as const,
+    files: [DATA_FILE, ORG_DATA_FILE, PAYCHECK_DATA_FILE, SCHEDULED_DATA_FILE, RECEIPT_DATA_FILE],
+  }
 }

@@ -14,7 +14,16 @@
       "Bash(nc -z localhost 27017 2>&1 && echo \"MongoDB is reachable\" || echo \"MongoDB not reachable on 27017\")",
       "mcp__ide__getDiagnostics",
       "Bash(mongod:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(npx tsc:*)",
+      "Bash(node:*)",
+      "Bash(curl -s https://config.unlink.xyz/networks.json)",
+      "mcp__plugin_claude-mem_mcp-search__get_observations",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://staging-api.unlink.xyz/broadcaster/relays/test-id)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -H \"Authorization: Bearer YTPo5ZLNGnGfkcMKWbBoAB\" https://staging-api.unlink.xyz/broadcaster/relays/test-id)",
+      "Bash(curl -s https://staging-api.unlink.xyz/broadcaster/relays/test-id)",
+      "Bash(curl:*)"
     ]
   }
 }

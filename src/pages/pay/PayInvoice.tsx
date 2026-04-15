@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Check, Download, ExternalLink, Loader2 } from 'lucide-react'
 import { JsonRpcProvider, Wallet, parseUnits } from 'ethers'
+import { apiFetch } from '../../lib/api'
 import type { Invoice } from '../../lib/invoices'
 import {
   fmtPartyName,
@@ -275,7 +276,7 @@ export default function PayInvoice() {
       })
 
       setStatusText('Balance detected. Preparing zk deposit...')
-      const startRes = await fetch(`/api/contracts/${id}/pay/start`, {
+      const startRes = await apiFetch(`/api/contracts/${id}/pay/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ payerAddress: depositWallet.address }),
@@ -341,7 +342,7 @@ export default function PayInvoice() {
       })
 
       setStatusText('Confirming deposit settlement...')
-      const confirmRes = await fetch(`/api/contracts/${id}/pay/confirm`, {
+      const confirmRes = await apiFetch(`/api/contracts/${id}/pay/confirm`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -364,7 +365,7 @@ export default function PayInvoice() {
       setReceiptBlob(receipt)
 
       const receiptHash = await sha256Blob(receipt)
-      await fetch(`/api/contracts/${id}/pay/receipt`, {
+      await apiFetch(`/api/contracts/${id}/pay/receipt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -386,7 +387,7 @@ export default function PayInvoice() {
       setLoading(true)
       setError(null)
       try {
-        const res = await fetch(`/api/contracts/${id}?ts=${Date.now()}`, { cache: 'no-store' })
+        const res = await apiFetch(`/api/contracts/${id}?ts=${Date.now()}`, { cache: 'no-store' })
         const raw = await readJsonResponse<Record<string, unknown>>(res, 'Invoice not found')
         setInvoice(normalizeInvoiceRecord(raw))
       } catch (err) {
@@ -485,7 +486,7 @@ export default function PayInvoice() {
 
     try {
       await ensureMonadTestnet(ethereum)
-      const startRes = await fetch(`/api/contracts/${id}/pay/start`, {
+      const startRes = await apiFetch(`/api/contracts/${id}/pay/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ payerAddress }),
@@ -526,7 +527,7 @@ export default function PayInvoice() {
       await waitForOnchainConfirmation(ethereum, txHash)
 
       setStatusText('Deposit confirmed - relaying private transfer...')
-      const confirmRes = await fetch(`/api/contracts/${id}/pay/confirm`, {
+      const confirmRes = await apiFetch(`/api/contracts/${id}/pay/confirm`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -546,7 +547,7 @@ export default function PayInvoice() {
       setReceiptBlob(receipt)
 
       const receiptHash = await sha256Blob(receipt)
-      await fetch(`/api/contracts/${id}/pay/receipt`, {
+      await apiFetch(`/api/contracts/${id}/pay/receipt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -583,7 +584,7 @@ export default function PayInvoice() {
     setStatusText('Submitting rejection...')
 
     try {
-      const res = await fetch(`/api/contracts/${id}`, {
+      const res = await apiFetch(`/api/contracts/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

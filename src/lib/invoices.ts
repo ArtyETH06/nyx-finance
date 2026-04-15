@@ -1,3 +1,5 @@
+import { NATIVE_TOKEN_ADDRESS, UNLKM_TOKEN_ADDRESS } from './tokens'
+
 export type InvoiceStatus = 'sent' | 'accepted' | 'rejected' | 'paid'
 
 export interface InvoicePartyInfo {
@@ -52,6 +54,7 @@ interface InvoiceLocalOverride {
 
 const LOCAL_OVERRIDES_KEY = 'nyx_invoice_overrides_v1'
 const LOCAL_UPDATES_CHANNEL = 'nyx_invoice_updates_v1'
+const LOCAL_CACHE_KEY = 'nyx_invoice_cache_v1'
 
 function readLocalOverrides(): Record<string, InvoiceLocalOverride> {
   if (typeof window === 'undefined') return {}
@@ -74,6 +77,27 @@ function writeLocalOverrides(data: Record<string, InvoiceLocalOverride>) {
   }
 }
 
+function readInvoiceCache(): Record<string, Record<string, unknown>> {
+  if (typeof window === 'undefined') return {}
+  try {
+    const raw = window.localStorage.getItem(LOCAL_CACHE_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw) as Record<string, Record<string, unknown>>
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeInvoiceCache(data: Record<string, Record<string, unknown>>) {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(data))
+  } catch {
+    // ignore storage failures
+  }
+}
+
 export function normalizeInvoiceRecord(raw: Record<string, unknown>): Invoice {
   const legacyCurrency = String(raw.currencySymbol ?? raw.tokenSymbol ?? raw.currency ?? 'USDCm')
   let tokenAddress = typeof raw.tokenAddress === 'string' ? raw.tokenAddress : ''
@@ -84,10 +108,10 @@ export function normalizeInvoiceRecord(raw: Record<string, unknown>): Invoice {
       tokenAddress = '0x86b6341d3c56bc379697d247fc080f5f2c8eed7b'
       tokenSymbol = 'USDTm'
     } else if (legacyCurrency === 'MON') {
-      tokenAddress = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE'
+      tokenAddress = NATIVE_TOKEN_ADDRESS
       tokenSymbol = 'MON'
     } else if (legacyCurrency === 'UNLKm') {
-      tokenAddress = '0xaaa4e95d4da878baf8e10745fdf26e196918df6b'
+      tokenAddress = UNLKM_TOKEN_ADDRESS
       tokenSymbol = 'UNLKm'
     } else {
       tokenAddress = '0xc4fb617e4e4cfbdeb07216dff62b4e46a2d6fdf6'
@@ -255,6 +279,43 @@ export function applyInvoiceLocalOverride(invoice: Invoice): Invoice {
     rejectionReason: override.rejectionReason ?? invoice.rejectionReason,
     payment: override.payment ?? invoice.payment,
   }
+}
+
+export function cacheInvoice(invoice: Invoice) {
+  const data = readInvoiceCache()
+  const serializable = invoice as unknown as Record<string, unknown>
+  if (invoice._id) data[invoice._id] = serializable
+  if (invoice.invoiceId) data[invoice.invoiceId] = serializable
+  writeInvoiceCache(data)
+}
+
+export function cacheInvoices(invoices: Invoice[]) {
+  if (invoices.length === 0) return
+  const data = readInvoiceCache()
+  for (const invoice of invoices) {
+    const serializable = invoice as unknown as Record<string, unknown>
+    if (invoice._id) data[invoice._id] = serializable
+    if (invoice.invoiceId) data[invoice.invoiceId] = serializable
+  }
+  writeInvoiceCache(data)
+}
+
+export function getCachedInvoice(id: string | undefined): Invoice | null {
+  if (!id) return null
+  const data = readInvoiceCache()
+  const raw = data[id]
+  if (!raw || typeof raw !== 'object') return null
+  return applyInvoiceLocalOverride(normalizeInvoiceRecord(raw))
+}
+
+export function formatInvoiceApiError(error: unknown, fallback: string): string {
+  if (error instanceof TypeError && /failed to fetch/i.test(error.message)) {
+    if (typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+      return 'Unable to reach the local invoice API. Restart `npm run dev`, then confirm requests hit `/__nyx_api/...` on `localhost:5173`.'
+    }
+    return 'Unable to reach the invoice API. Check that the /api functions are deployed and that backend env vars are configured.'
+  }
+  return error instanceof Error ? error.message : fallback
 }
 
 export function subscribeInvoiceUpdates(onChange: () => void): () => void {

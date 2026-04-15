@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
-import { useUnlink } from '@unlink-xyz/react'
+import { useUnlink } from '../../lib/unlink'
+import { apiFetch } from '../../lib/api'
 import { useNavigate } from 'react-router-dom'
 import { FilePlus, ArrowUpRight, ArrowDownLeft, RefreshCw, Loader2 } from 'lucide-react'
 import type { Invoice } from '../../lib/invoices'
 import {
   applyInvoiceLocalOverride,
+  formatInvoiceApiError,
   fmtPartyName,
   invoiceStatusLabel,
   normalizeInvoiceRecord,
@@ -61,14 +63,14 @@ export default function InvoiceDashboard() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/contracts?address=${encodeURIComponent(address)}&ts=${Date.now()}`, {
+      const res = await apiFetch(`/api/contracts?address=${encodeURIComponent(address)}&ts=${Date.now()}`, {
         cache: 'no-store',
       })
       if (!res.ok) throw new Error('Failed to load invoices')
       const raw = await res.json() as Record<string, unknown>[]
       setInvoices(raw.map((item) => applyInvoiceLocalOverride(normalizeInvoiceRecord(item))))
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Unknown error')
+      setError(formatInvoiceApiError(e, 'Unknown error'))
     } finally {
       setLoading(false)
     }

@@ -1,10 +1,19 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useUnlink } from '@unlink-xyz/react'
+import { useUnlink } from '../../lib/unlink'
+import { apiFetch } from '../../lib/api'
 import { loadProfile } from '../../lib/profile'
 import { toast } from '../../lib/toast'
 import { buildInvoicePdf, sha256Blob } from '../../lib/invoicePdf'
-import { computeDueDateIso, formatDueDate, formatIssueDate, makeInvoiceId } from '../../lib/invoices'
+import {
+  cacheInvoice,
+  computeDueDateIso,
+  formatInvoiceApiError,
+  formatDueDate,
+  formatIssueDate,
+  makeInvoiceId,
+  normalizeInvoiceRecord,
+} from '../../lib/invoices'
 import { INVOICE_TOKEN_OPTIONS, getInvoiceTokenBySymbol, type InvoiceTokenSymbol } from '../../lib/tokens'
 import { buildInvoiceEmailHtml } from '../../lib/invoiceEmail'
 
@@ -88,6 +97,7 @@ export default function CreateInvoice() {
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [previewTab, setPreviewTab] = useState<'pdf' | 'email'>('pdf')
   const previewInvoiceIdRef = useRef(makeInvoiceId(new Date()))
+  const previewUrlRef = useRef<string | null>(null)
 
   // Pre-fill issuer from saved profile
   useEffect(() => {
@@ -109,6 +119,13 @@ export default function CreateInvoice() {
     }, 450)
     return () => window.clearInterval(timer)
   }, [submitting])
+
+  useEffect(() => () => {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current)
+      previewUrlRef.current = null
+    }
+  }, [])
 
   function set(field: Exclude<keyof FormState, 'lineItems'>) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -214,7 +231,7 @@ export default function CreateInvoice() {
       const pdfBlob = doc.output('blob')
       const pdfHash = await sha256Blob(pdfBlob)
 
-      const res = await fetch('/api/contracts', {
+      const res = await apiFetch('/api/contracts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -259,12 +276,43 @@ export default function CreateInvoice() {
 
       toast.show('Invoice created successfully.')
       const data = await res.json()
-      const id = (data.invoice?._id ?? data.invoice?.invoiceId ?? data.id) as string
+      const id = (data.invoice?._id ?? data.invoice?.invoiceId ?? data.id ?? invoiceId) as string
+      const createdInvoice = normalizeInvoiceRecord(
+        (data.invoice as Record<string, unknown> | undefined) ?? {
+          _id: id,
+          invoiceId,
+          issuerAddress: activeAccount.address,
+          payerAddress: '',
+          issuerInfo: {
+            firstName: form.issuerFirstName || undefined,
+            lastName: form.issuerLastName || undefined,
+            company: form.issuerCompany || undefined,
+          },
+          payerInfo: {
+            firstName: form.payerFirstName || undefined,
+            lastName: form.payerLastName || undefined,
+            company: form.payerCompany || undefined,
+          },
+          lineItems: parsedLineItems,
+          title: normalizedInvoiceTitle,
+          description: parsedLineItems[0].description,
+          amount: totalAmount,
+          tokenAddress: selectedToken.address,
+          tokenSymbol: selectedToken.symbol,
+          currencySymbol: selectedToken.symbol,
+          status: 'sent',
+          rejectionReason: null,
+          pdfHash,
+          createdAt,
+          dueDate: dueDateIso,
+        },
+      )
+      cacheInvoice(createdInvoice)
 
       // Fire-and-forget email — don't block navigation on email failure
       if (form.payerEmail.trim()) {
         const issuerName = [form.issuerFirstName, form.issuerLastName].filter(Boolean).join(' ') || 'Issuer'
-        fetch('/api/email/invoice', {
+        apiFetch('/api/email/invoice', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -285,7 +333,7 @@ export default function CreateInvoice() {
 
       navigate(`/invoices/${id}`)
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Something went wrong.')
+      setFormError(formatInvoiceApiError(err, 'Something went wrong.'))
     } finally {
       setSubmitting(false)
     }
@@ -340,11 +388,23 @@ export default function CreateInvoice() {
           status: 'sent',
         })
 
-        if (!cancelled) {
-          setPreviewUrl(doc.output('datauristring'))
+        const blob = doc.output('blob')
+        const nextPreviewUrl = URL.createObjectURL(blob)
+        if (cancelled) {
+          URL.revokeObjectURL(nextPreviewUrl)
+          return
         }
+        if (previewUrlRef.current) {
+          URL.revokeObjectURL(previewUrlRef.current)
+        }
+        previewUrlRef.current = nextPreviewUrl
+        setPreviewUrl(nextPreviewUrl)
       } catch {
         if (!cancelled) {
+          if (previewUrlRef.current) {
+            URL.revokeObjectURL(previewUrlRef.current)
+            previewUrlRef.current = null
+          }
           setPreviewUrl(null)
           setPreviewError('Unable to render preview')
         }

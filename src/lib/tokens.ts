@@ -1,6 +1,7 @@
-import { formatAmount } from '@unlink-xyz/react'
+import { formatAmount } from './unlink'
 
 export const NATIVE_TOKEN_ADDRESS = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE'
+export const UNLKM_TOKEN_ADDRESS = '0x7501de8ea37a21e20e6e65947d2ecab0e9f061a7'
 
 export interface Token {
   address: string
@@ -20,7 +21,7 @@ export const TOKENS: Token[] = [
     isNative: true,
   },
   {
-    address: '0xaaa4e95d4da878baf8e10745fdf26e196918df6b',
+    address: UNLKM_TOKEN_ADDRESS,
     symbol: 'UNLKm',
     decimals: 18,
     name: 'Unlink (monad testnet)',

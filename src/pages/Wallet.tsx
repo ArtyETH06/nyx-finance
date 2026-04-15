@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useUnlink, useUnlinkBalances, parseAmount } from '@unlink-xyz/react'
+import { parseAmount, useUnlink, useUnlinkBalances } from '../lib/unlink'
 import {
   Wifi, ShieldCheck, Wallet as WalletIcon,
   ArrowDownToLine, ArrowUpFromLine, Link as LinkIcon, ChevronDown,
@@ -40,8 +40,6 @@ function resolveRpcUrl(): string {
 type EthereumProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
 }
-
-type WithdrawRelayResult = { txHash?: string; relayId?: string }
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -143,7 +141,19 @@ async function fetchPublicBalance(tokenAddress: string, walletAddress: string): 
 
 export default function Wallet() {
   const navigate = useNavigate()
-  const { ready, walletExists, activeAccount, refresh, deposit, withdraw, getTxStatus, forceResync, syncError, busy } = useUnlink()
+  const {
+    ready,
+    walletExists,
+    activeAccount,
+    refresh,
+    deposit,
+    withdraw,
+    waitForConfirmation,
+    ensureErc20Approval,
+    forceResync,
+    syncError,
+    busy,
+  } = useUnlink()
   const { balances, loading: balancesLoading } = useUnlinkBalances()
 
   const [depositPending, setDepositPending] = useState(false)
@@ -245,39 +255,35 @@ export default function Wallet() {
     if (!publicAddress || !depositAmount) return
     const token = getTokenByAddress(depositToken)
     if (!token) return
+    if (token.isNative) {
+      toast.show('The current Unlink SDK only supports ERC-20 deposits. Use USDCm, USDTm, or UNLKm.', 'error')
+      return
+    }
     setDepositPending(true)
     try {
       const amount = parseAmount(depositAmount, token.decimals)
-      const result = await deposit([{ token: token.address, amount, depositor: publicAddress }]) as
-        | { relayId?: string; to: string; calldata: string; value?: string | bigint }
-        | undefined
-      if (!result) throw new Error('No deposit result returned')
       if (!window.ethereum) throw new Error('No wallet provider found')
       await ensureMonadTestnet(window.ethereum)
-      const txParams: Record<string, string> = {
-        to: result.to,
-        data: result.calldata,
-        from: publicAddress,
-      }
-      if (token.isNative) {
-        txParams.value = '0x' + amount.toString(16)
-      } else if (typeof result.value === 'bigint') {
-        txParams.value = `0x${result.value.toString(16)}`
-      } else if (result.value) {
-        txParams.value = result.value
-      }
-      const txHash: string = await window.ethereum.request({
-        method: 'eth_sendTransaction',
-        params: [txParams],
-      }) as string
 
-      await waitForOnchainConfirmation(window.ethereum, txHash)
+      const approval = await ensureErc20Approval({
+        token: token.address,
+        amount,
+        evmAddress: publicAddress,
+      })
+
+      if (approval.status === 'submitted') {
+        await waitForOnchainConfirmation(window.ethereum, approval.txHash)
+      }
+
+      const result = await deposit([{ token: token.address, amount, depositor: publicAddress }])
+      const status = await waitForConfirmation(result.relayId, { timeout: 180000 })
+
       setDepositAmount('')
       await refreshAllBalances(token)
       toast.show(
         `Deposited ${depositAmount} ${token.symbol} from ${shortenAddress(publicAddress)}`,
         'success',
-        txHash ? `${EXPLORER}/${txHash}` : undefined,
+        status.txHash ? `${EXPLORER}/${status.txHash}` : undefined,
       )
     } catch (e) {
       toast.show(e instanceof Error ? e.message : 'Deposit failed.', 'error')
@@ -294,7 +300,7 @@ export default function Wallet() {
     try {
       const amount = parseAmount(withdrawAmount, token.decimals)
       const tokenAddress = canonicalTokenAddress(token.address)
-      const results: WithdrawRelayResult[] = []
+      const results: Array<{ relayId?: string; txHash?: string }> = []
       const queue: bigint[] = [amount]
 
       while (queue.length > 0) {
@@ -304,8 +310,9 @@ export default function Wallet() {
             token: tokenAddress,
             amount: nextAmount,
             recipient: withdrawRecipient,
-          }]) as WithdrawRelayResult | undefined
-          results.push(result ?? {})
+          }])
+          const status = await waitForConfirmation(result.relayId, { timeout: 180000 })
+          results.push({ relayId: result.relayId, txHash: status.txHash })
         } catch (err) {
           if (!isMaxInputsConstraintError(err)) throw err
           if (nextAmount <= 1n || queue.length + results.length >= 8) {
@@ -325,15 +332,7 @@ export default function Wallet() {
       await refreshAllBalances(token)
       const result = results[results.length - 1]
       const relayId = result?.relayId
-      let txHash = result?.txHash
-      if (!txHash && relayId) {
-        try {
-          const status = await getTxStatus(relayId)
-          txHash = status.txHash ?? undefined
-        } catch {
-          // Keep success toast even if tx status fetch fails; relay id is still useful.
-        }
-      }
+      const txHash = result?.txHash
       const relayText = relayId ? ` | Relay ID: ${relayId}` : ''
       const splitText = results.length > 1 ? ` | split into ${results.length} withdrawals` : ''
       toast.show(
@@ -363,6 +362,7 @@ export default function Wallet() {
 
   const balanceEntries = Object.entries(balances ?? {}).filter(([, v]) => v > 0n)
   const tokensWithBalance = TOKENS.filter(t => bal(t.address) > 0n)
+  const hasPrivateBalances = balanceEntries.length > 0
 
   const selectedDepositToken = getTokenByAddress(depositToken)
   const selectedWithdrawToken = withdrawToken ? getTokenByAddress(withdrawToken) : null
@@ -422,8 +422,17 @@ export default function Wallet() {
         </div>
 
         {syncError && (
-          <div className="mb-4 px-3 py-2 rounded-lg border border-[rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.08)] text-[11px] text-red-400 break-all">
-            Sync error: {syncError}
+          <div
+            className={[
+              'mb-4 px-3 py-2 rounded-lg border text-[11px] break-all',
+              hasPrivateBalances
+                ? 'border-[rgba(245,158,11,0.25)] bg-[rgba(245,158,11,0.08)] text-yellow-300'
+                : 'border-[rgba(239,68,68,0.25)] bg-[rgba(239,68,68,0.08)] text-red-400',
+            ].join(' ')}
+          >
+            {hasPrivateBalances
+              ? 'Live sync failed. Showing the last cached private balances from this device.'
+              : `Sync error: ${syncError}`}
           </div>
         )}
 
