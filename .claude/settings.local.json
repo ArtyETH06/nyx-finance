@@ -23,7 +23,11 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://staging-api.unlink.xyz/broadcaster/relays/test-id)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" -H \"Authorization: Bearer YTPo5ZLNGnGfkcMKWbBoAB\" https://staging-api.unlink.xyz/broadcaster/relays/test-id)",
       "Bash(curl -s https://staging-api.unlink.xyz/broadcaster/relays/test-id)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(npx vercel:*)",
+      "Bash(npm info:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(npm list:*)"
     ]
   }
 }
