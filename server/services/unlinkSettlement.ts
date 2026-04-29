@@ -10,20 +10,47 @@ export function toBaseUnits(amount: number, decimals = 18): bigint {
   return BigInt(normalized)
 }
 
-// 🚫 Toutes les fonctions unlink désactivées
+export interface BuildDepositForPayerParams {
+  depositor: string
+  token: string
+  amount: bigint
+  recipientZkAddress?: string
+}
 
-export async function buildDepositForPayer() {
+export interface DepositPayload {
+  relayId: string
+  to: string
+  calldata: string
+  value: bigint
+}
+
+export interface ConfirmDepositRelayParams {
+  depositRelayId: string
+}
+
+export interface ConfirmDepositRelayResult {
+  relayId: string
+  txHash?: string
+}
+
+// Unlink is intentionally disabled, but these stubs keep the server API
+// contract type-safe for Vercel's function compiler.
+function unlinkUnavailable(): never {
   throw new Error('Unlink feature removed')
 }
 
-export async function confirmDepositRelay() {
-  throw new Error('Unlink feature removed')
+export async function buildDepositForPayer(_params: BuildDepositForPayerParams): Promise<DepositPayload> {
+  unlinkUnavailable()
+}
+
+export async function confirmDepositRelay(_params: ConfirmDepositRelayParams): Promise<ConfirmDepositRelayResult> {
+  unlinkUnavailable()
 }
 
 export async function confirmDepositAndSendPrivately() {
-  throw new Error('Unlink feature removed')
+  unlinkUnavailable()
 }
 
 export async function getTemporaryZkAddress() {
-  throw new Error('Unlink feature removed')
+  unlinkUnavailable()
 }
